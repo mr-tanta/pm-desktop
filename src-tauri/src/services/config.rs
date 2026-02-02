@@ -21,8 +21,8 @@ impl ConfigService {
             return Ok(Config::default());
         }
 
-        let content = fs::read_to_string(&self.config_path)
-            .context("Failed to read config file")?;
+        let content =
+            fs::read_to_string(&self.config_path).context("Failed to read config file")?;
 
         let mut map: HashMap<String, String> = HashMap::new();
         for line in content.lines() {
@@ -50,7 +50,11 @@ impl ConfigService {
             archive_dir: map
                 .get("PM_ARCHIVE_DIR")
                 .map(|s| expand_path(s))
-                .unwrap_or_else(|| home.join("Developer/archived").to_string_lossy().to_string()),
+                .unwrap_or_else(|| {
+                    home.join("Developer/archived")
+                        .to_string_lossy()
+                        .to_string()
+                }),
             default_editor: map
                 .get("PM_DEFAULT_EDITOR")
                 .cloned()
@@ -92,18 +96,33 @@ impl ConfigService {
         lines.push("# Shared with pm CLI tool".to_string());
         lines.push(String::new());
 
-        lines.push(format!("PM_ACTIVE_DIR=\"{}\"", compact_path(&config.active_dir)));
-        lines.push(format!("PM_ARCHIVE_DIR=\"{}\"", compact_path(&config.archive_dir)));
+        lines.push(format!(
+            "PM_ACTIVE_DIR=\"{}\"",
+            compact_path(&config.active_dir)
+        ));
+        lines.push(format!(
+            "PM_ARCHIVE_DIR=\"{}\"",
+            compact_path(&config.archive_dir)
+        ));
         lines.push(format!("PM_DEFAULT_EDITOR=\"{}\"", config.default_editor));
-        lines.push(format!("PM_DEFAULT_TEMPLATE=\"{}\"", config.default_template));
+        lines.push(format!(
+            "PM_DEFAULT_TEMPLATE=\"{}\"",
+            config.default_template
+        ));
 
         if let Some(ref username) = config.github_username {
             lines.push(format!("PM_GITHUB_USERNAME=\"{}\"", username));
         }
 
         lines.push(format!("PM_AUTO_GIT_INIT=\"{}\"", config.auto_git_init));
-        lines.push(format!("PM_AUTO_INSTALL_DEPS=\"{}\"", config.auto_install_deps));
-        lines.push(format!("PM_TIME_TRACKING=\"{}\"", config.time_tracking_enabled));
+        lines.push(format!(
+            "PM_AUTO_INSTALL_DEPS=\"{}\"",
+            config.auto_install_deps
+        ));
+        lines.push(format!(
+            "PM_TIME_TRACKING=\"{}\"",
+            config.time_tracking_enabled
+        ));
 
         if let Some(parent) = self.config_path.parent() {
             fs::create_dir_all(parent)?;

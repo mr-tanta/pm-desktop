@@ -111,7 +111,9 @@ fn get_git_status_uncached(path: &Path) -> Option<GitStatus> {
                 .and_then(|r| r.peel_to_commit().ok());
 
             if let Some(upstream_commit) = upstream {
-                let (a, b) = repo.graph_ahead_behind(local_oid, upstream_commit.id()).unwrap_or((0, 0));
+                let (a, b) = repo
+                    .graph_ahead_behind(local_oid, upstream_commit.id())
+                    .unwrap_or((0, 0));
                 (a as u32, b as u32, true)
             } else {
                 (0, 0, false)
@@ -266,7 +268,10 @@ pub async fn list_projects(location: Option<ProjectLocation>) -> Result<Vec<Proj
 }
 
 #[tauri::command]
-pub async fn get_project(name: String, include_size: Option<bool>) -> Result<ProjectDetail, String> {
+pub async fn get_project(
+    name: String,
+    include_size: Option<bool>,
+) -> Result<ProjectDetail, String> {
     let config_service = ConfigService::new();
     let config = config_service.load().map_err(|e| e.to_string())?;
 
@@ -302,7 +307,8 @@ pub async fn get_project(name: String, include_size: Option<bool>) -> Result<Pro
 
         let has_package_json = path.join("package.json").exists();
         let has_cargo_toml = path.join("Cargo.toml").exists();
-        let has_docker = path.join("Dockerfile").exists() || path.join("docker-compose.yml").exists();
+        let has_docker =
+            path.join("Dockerfile").exists() || path.join("docker-compose.yml").exists();
         let has_env_file = path.join(".env").exists() || path.join(".env.local").exists();
 
         let readme_preview = path
@@ -353,7 +359,10 @@ fn calculate_dir_size(path: &Path) -> Result<u64, std::io::Error> {
         let entry = entry?;
         let path = entry.path();
 
-        let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
         if name == "node_modules" || name == ".git" || name == "target" {
             continue;
         }

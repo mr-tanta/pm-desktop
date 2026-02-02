@@ -87,7 +87,10 @@ impl Default for Config {
         let home = dirs::home_dir().unwrap_or_default();
         Self {
             active_dir: home.join("Developer/active").to_string_lossy().to_string(),
-            archive_dir: home.join("Developer/archived").to_string_lossy().to_string(),
+            archive_dir: home
+                .join("Developer/archived")
+                .to_string_lossy()
+                .to_string(),
             default_editor: "cursor".to_string(),
             default_template: "next".to_string(),
             github_username: None,

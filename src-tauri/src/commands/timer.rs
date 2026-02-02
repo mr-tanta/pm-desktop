@@ -26,7 +26,10 @@ pub fn get_active_timer() -> Result<Option<ActiveTimer>, String> {
 }
 
 #[tauri::command]
-pub fn get_time_entries(project_name: Option<String>, limit: Option<i64>) -> Result<Vec<TimeEntry>, String> {
+pub fn get_time_entries(
+    project_name: Option<String>,
+    limit: Option<i64>,
+) -> Result<Vec<TimeEntry>, String> {
     get_db()
         .get_time_entries(project_name.as_deref(), limit)
         .map_err(|e| e.to_string())

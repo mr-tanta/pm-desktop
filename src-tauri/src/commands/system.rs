@@ -8,10 +8,14 @@ pub fn get_system_info() -> Result<SystemInfo, String> {
 
     let disks = sysinfo::Disks::new_with_refreshed_list();
     let (total_disk, used_disk) = disks.iter().fold((0, 0), |(total, used), disk| {
-        (total + disk.total_space(), used + (disk.total_space() - disk.available_space()))
+        (
+            total + disk.total_space(),
+            used + (disk.total_space() - disk.available_space()),
+        )
     });
 
-    let cpu_usage = sys.cpus().iter().map(|cpu| cpu.cpu_usage()).sum::<f32>() / sys.cpus().len() as f32;
+    let cpu_usage =
+        sys.cpus().iter().map(|cpu| cpu.cpu_usage()).sum::<f32>() / sys.cpus().len() as f32;
 
     Ok(SystemInfo {
         total_memory: sys.total_memory(),

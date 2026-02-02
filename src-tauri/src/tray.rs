@@ -12,9 +12,10 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let menu = build_tray_menu(app)?;
 
     // Load icon from app resources
-    let icon = app.default_window_icon().cloned().unwrap_or_else(|| {
-        Image::new_owned(vec![0; 32 * 32 * 4], 32, 32)
-    });
+    let icon = app
+        .default_window_icon()
+        .cloned()
+        .unwrap_or_else(|| Image::new_owned(vec![0; 32 * 32 * 4], 32, 32));
 
     let tray = TrayIconBuilder::with_id("main-tray")
         .icon(icon)
@@ -114,7 +115,11 @@ fn get_recent_projects(dir: &Path, limit: usize) -> Vec<String> {
         .collect();
 
     projects.sort_by(|a, b| b.1.cmp(&a.1));
-    projects.into_iter().take(limit).map(|(name, _)| name).collect()
+    projects
+        .into_iter()
+        .take(limit)
+        .map(|(name, _)| name)
+        .collect()
 }
 
 fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event_id: &str) {
