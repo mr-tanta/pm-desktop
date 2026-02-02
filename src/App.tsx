@@ -7,6 +7,7 @@ import { ProjectList } from "@/components/projects/project-list";
 import { ProjectDetail } from "@/components/projects/project-detail";
 import { SettingsPage } from "@/components/settings/settings-page";
 import { CommandPalette } from "@/components/shared/command-palette";
+import { UpdateNotification } from "@/components/shared/update-notification";
 import { useAppStore } from "@/stores/app-store";
 
 const queryClient = new QueryClient({
@@ -60,6 +61,7 @@ function AppContent() {
         open={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
       />
+      <UpdateNotification />
     </AppShell>
   );
 }

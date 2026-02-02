@@ -1,9 +1,12 @@
 import { useState, useEffect } from "react";
 import { useConfig } from "@/hooks/use-system";
+import { useUpdater } from "@/hooks/use-updater";
 import { saveConfig } from "@/lib/tauri";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Config } from "@/types";
-import { Save, RotateCcw, FolderOpen, Code, GitBranch, Timer } from "lucide-react";
+import { Save, RotateCcw, FolderOpen, Code, GitBranch, Timer, Info, RefreshCw, Download, Check } from "lucide-react";
+
+const APP_VERSION = "0.1.0";
 
 export function SettingsPage() {
   const { data: config, isLoading } = useConfig();
@@ -11,6 +14,8 @@ export function SettingsPage() {
   const [form, setForm] = useState<Config | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const { checking, updateAvailable, checkForUpdates, downloadAndInstall, downloading, progress } = useUpdater();
+  const [checkedOnce, setCheckedOnce] = useState(false);
 
   useEffect(() => {
     if (config) {
@@ -142,6 +147,60 @@ export function SettingsPage() {
             checked={form.time_tracking_enabled}
             onChange={(v) => setForm({ ...form, time_tracking_enabled: v })}
           />
+        </Section>
+
+        <Section title="About" icon={Info}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">PM Desktop</p>
+              <p className="text-xs text-muted-foreground">Version {APP_VERSION}</p>
+            </div>
+            {updateAvailable ? (
+              <button
+                onClick={downloadAndInstall}
+                disabled={downloading}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 rounded-md transition-colors disabled:opacity-50"
+              >
+                {downloading ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    {progress}%
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-3.5 w-3.5" />
+                    Update to {updateAvailable.version}
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  await checkForUpdates();
+                  setCheckedOnce(true);
+                }}
+                disabled={checking}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary hover:bg-secondary/80 rounded-md transition-colors disabled:opacity-50"
+              >
+                {checking ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    Checking...
+                  </>
+                ) : checkedOnce ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-green-400" />
+                    Up to date
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Check for Updates
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </Section>
       </div>
     </div>
