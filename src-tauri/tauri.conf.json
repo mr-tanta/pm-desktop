@@ -41,12 +41,7 @@
     ],
     "category": "DeveloperTool",
     "shortDescription": "Project Manager Desktop",
-    "longDescription": "A native macOS application for managing development projects",
-    "macOS": {
-      "signing": {
-        "identity": null
-      }
-    }
+    "longDescription": "A native macOS application for managing development projects"
   },
   "plugins": {
     "shell": {
