@@ -154,6 +154,7 @@ fn toggle_window_visibility<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
+#[allow(dead_code)]
 pub fn update_timer_status<R: Runtime>(app: &AppHandle<R>, _status: Option<(String, i64)>) {
     if let Some(tray) = app.try_state::<tauri::tray::TrayIcon<R>>() {
         if let Ok(menu) = build_tray_menu(app) {

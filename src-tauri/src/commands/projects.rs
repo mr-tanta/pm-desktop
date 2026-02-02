@@ -197,12 +197,12 @@ fn scan_projects(dir: &Path, location: ProjectLocation) -> Vec<Project> {
         let last_modified = metadata
             .as_ref()
             .and_then(|m| m.modified().ok())
-            .map(|t| DateTime::<Utc>::from(t));
+            .map(DateTime::<Utc>::from);
 
         let created_at = metadata
             .as_ref()
             .and_then(|m| m.created().ok())
-            .map(|t| DateTime::<Utc>::from(t));
+            .map(DateTime::<Utc>::from);
 
         let project_type = detect_project_type(&path);
         let git_status = get_git_status(&path);
@@ -296,11 +296,11 @@ pub async fn get_project(
         let last_modified = metadata
             .as_ref()
             .and_then(|m| m.modified().ok())
-            .map(|t| DateTime::<Utc>::from(t));
+            .map(DateTime::<Utc>::from);
         let created_at = metadata
             .as_ref()
             .and_then(|m| m.created().ok())
-            .map(|t| DateTime::<Utc>::from(t));
+            .map(DateTime::<Utc>::from);
 
         let project_type = detect_project_type(&path);
         let git_status = get_git_status(&path);
