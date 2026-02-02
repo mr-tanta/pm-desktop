@@ -1,0 +1,90 @@
+import { cn } from "@/lib/utils";
+import { useAppStore } from "@/stores/app-store";
+import { useProjects } from "@/hooks/use-projects";
+import { LayoutDashboard, FolderKanban, Archive, ChevronLeft, ChevronRight } from "lucide-react";
+
+export function Sidebar() {
+  const { currentView, setView, sidebarCollapsed, toggleSidebar, setSelectedProject } = useAppStore();
+  const { data: activeProjects } = useProjects("active");
+  const { data: archivedProjects } = useProjects("archived");
+
+  const navItems = [
+    {
+      id: "dashboard" as const,
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      id: "projects" as const,
+      label: "Projects",
+      icon: FolderKanban,
+      count: activeProjects?.length,
+    },
+  ];
+
+  return (
+    <aside
+      className={cn(
+        "h-full border-r border-border bg-sidebar flex flex-col transition-all duration-200",
+        sidebarCollapsed ? "w-16" : "w-56"
+      )}
+    >
+      <div className="flex-1 py-4">
+        <nav className="space-y-1 px-2">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = currentView === item.id || (currentView === "project-detail" && item.id === "projects");
+
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setSelectedProject(null);
+                  setView(item.id);
+                }}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                  isActive
+                    ? "bg-secondary text-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {!sidebarCollapsed && (
+                  <>
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {item.count !== undefined && (
+                      <span className="text-xs text-muted-foreground">{item.count}</span>
+                    )}
+                  </>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {!sidebarCollapsed && archivedProjects && archivedProjects.length > 0 && (
+          <div className="mt-6 px-2">
+            <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground uppercase tracking-wider">
+              <Archive className="h-3 w-3" />
+              Archived ({archivedProjects.length})
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="p-2 border-t border-border">
+        <button
+          onClick={toggleSidebar}
+          className="w-full flex items-center justify-center p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+        >
+          {sidebarCollapsed ? (
+            <ChevronRight className="h-4 w-4" />
+          ) : (
+            <ChevronLeft className="h-4 w-4" />
+          )}
+        </button>
+      </div>
+    </aside>
+  );
+}
