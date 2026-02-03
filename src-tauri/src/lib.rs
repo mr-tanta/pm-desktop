@@ -45,6 +45,8 @@ pub fn run() {
             projects::restore_project,
             projects::delete_project,
             projects::get_project_size,
+            projects::get_project_disk_info,
+            projects::calculate_path_size,
             // System commands
             system::get_system_info,
             system::get_installed_editors,

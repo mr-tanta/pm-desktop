@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { listProjects, getProject, getProjectSize } from "@/lib/tauri";
-import type { ProjectLocation } from "@/types";
+import { listProjects, getProject, getProjectSize, getProjectDiskInfo } from "@/lib/tauri";
+import type { ProjectLocation, DiskSizeOptions } from "@/types";
 
 export function useProjects(location?: ProjectLocation) {
   return useQuery({
@@ -23,6 +23,15 @@ export function useProjectSize(name: string | null) {
   return useQuery({
     queryKey: ["project-size", name],
     queryFn: () => (name ? getProjectSize(name) : null),
+    enabled: !!name,
+    staleTime: 300000, // 5 minutes - size doesn't change often
+  });
+}
+
+export function useProjectDiskInfo(name: string | null, options?: DiskSizeOptions) {
+  return useQuery({
+    queryKey: ["project-disk-info", name, options],
+    queryFn: () => (name ? getProjectDiskInfo(name, options) : null),
     enabled: !!name,
     staleTime: 300000, // 5 minutes - size doesn't change often
   });

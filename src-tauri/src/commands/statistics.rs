@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
+use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::process::Command;
 
@@ -58,6 +59,8 @@ fn count_projects(dir: &Path) -> u32 {
         .unwrap_or(0)
 }
 
+/// Calculate directory size using native block-based allocation
+/// This gives accurate disk usage matching `du` command
 fn calculate_dir_size(dir: &Path) -> u64 {
     if !dir.exists() {
         return 0;
@@ -67,9 +70,12 @@ fn calculate_dir_size(dir: &Path) -> u64 {
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
 
-            // Skip heavy directories
+            // Skip heavy directories for statistics (source code size only)
             if name == "node_modules" || name == ".git" || name == "target" {
                 continue;
             }
@@ -77,7 +83,8 @@ fn calculate_dir_size(dir: &Path) -> u64 {
             if path.is_dir() {
                 size += calculate_dir_size(&path);
             } else if let Ok(meta) = entry.metadata() {
-                size += meta.len();
+                // Use st_blocks for actual disk usage (512-byte blocks on Unix)
+                size += meta.blocks() * 512;
             }
         }
     }

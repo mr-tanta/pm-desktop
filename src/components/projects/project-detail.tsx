@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useProject } from "@/hooks/use-projects";
+import { useProject, useProjectDiskInfo } from "@/hooks/use-projects";
 import { useStartTimer, useActiveTimer } from "@/hooks/use-timer";
 import { useConfig } from "@/hooks/use-system";
 import { useAppStore } from "@/stores/app-store";
@@ -30,7 +30,10 @@ import {
   AlertTriangle,
   X,
   Loader2,
+  HardDrive,
+  RefreshCw,
 } from "lucide-react";
+import type { DiskSizeInfo } from "@/types";
 
 export function ProjectDetail() {
   const selectedProject = useAppStore((s) => s.selectedProject);
@@ -44,6 +47,15 @@ export function ProjectDetail() {
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [showFullDiskInfo, setShowFullDiskInfo] = useState(false);
+
+  // Fetch detailed disk info with all directories included
+  const { data: diskInfo, isLoading: diskInfoLoading, refetch: refetchDiskInfo } = useProjectDiskInfo(
+    selectedProject,
+    showFullDiskInfo
+      ? { include_node_modules: true, include_git: true, include_target: true }
+      : undefined
+  );
 
   const editor = config?.default_editor || "cursor";
 
@@ -295,12 +307,6 @@ export function ProjectDetail() {
                 <dd>{formatRelativeTime(project.created_at)}</dd>
               </div>
             )}
-            {project.disk_size && (
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Size (excl. deps)</dt>
-                <dd>{formatBytes(project.disk_size)}</dd>
-              </div>
-            )}
           </dl>
         </div>
 
@@ -313,6 +319,43 @@ export function ProjectDetail() {
             <Feature icon={FileKey} label=".env file" active={project.has_env_file} />
           </div>
         </div>
+      </div>
+
+      {/* Disk Usage Section */}
+      <div className="rounded-lg bg-card border border-border p-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <HardDrive className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-medium">Disk Usage</h3>
+            {diskInfoLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => refetchDiskInfo()}
+              className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground"
+              title="Refresh disk info"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </button>
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={showFullDiskInfo}
+                onChange={(e) => setShowFullDiskInfo(e.target.checked)}
+                className="rounded border-border"
+              />
+              Include all directories
+            </label>
+          </div>
+        </div>
+
+        {diskInfo ? (
+          <DiskUsageBreakdown info={diskInfo} showFull={showFullDiskInfo} />
+        ) : (
+          <div className="text-sm text-muted-foreground">
+            {diskInfoLoading ? "Calculating..." : "No disk info available"}
+          </div>
+        )}
       </div>
 
       {project.readme_preview && (
@@ -337,6 +380,61 @@ function Feature({ icon: Icon, label, active }: { icon: typeof Package; label: s
     >
       <Icon className="h-4 w-4" />
       <span>{label}</span>
+    </div>
+  );
+}
+
+function DiskUsageBreakdown({ info, showFull }: { info: DiskSizeInfo; showFull: boolean }) {
+  const items = [
+    { label: "Source Code", bytes: info.source_bytes, color: "bg-blue-500" },
+    ...(showFull
+      ? [
+          { label: "node_modules", bytes: info.node_modules_bytes, color: "bg-yellow-500" },
+          { label: ".git", bytes: info.git_bytes, color: "bg-purple-500" },
+          { label: "target", bytes: info.target_bytes, color: "bg-orange-500" },
+        ]
+      : []),
+  ].filter((item) => item.bytes > 0);
+
+  const total = showFull ? info.total_bytes : info.source_bytes;
+
+  return (
+    <div className="space-y-4">
+      {/* Summary */}
+      <div className="flex items-center justify-between">
+        <div className="text-2xl font-semibold">{info.formatted}</div>
+        <div className="text-xs text-muted-foreground">
+          {info.file_count.toLocaleString()} files • {info.dir_count.toLocaleString()} directories
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-3 rounded-full bg-secondary overflow-hidden flex">
+        {items.map((item, i) => {
+          const percent = total > 0 ? (item.bytes / total) * 100 : 0;
+          return (
+            <div
+              key={i}
+              className={`${item.color} transition-all duration-300`}
+              style={{ width: `${percent}%` }}
+              title={`${item.label}: ${formatBytes(item.bytes)}`}
+            />
+          );
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="grid grid-cols-2 gap-2 text-sm">
+        {items.map((item, i) => (
+          <div key={i} className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded ${item.color}`} />
+              <span className="text-muted-foreground">{item.label}</span>
+            </div>
+            <span className="font-mono text-xs">{formatBytes(item.bytes)}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

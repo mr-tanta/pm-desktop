@@ -1,8 +1,10 @@
 use crate::models::{Config, GitStatus, Project, ProjectDetail, ProjectLocation};
 use crate::services::ConfigService;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, RwLock};
 use std::time::{Duration, Instant};
@@ -348,33 +350,187 @@ pub async fn get_project(
     .map_err(|e| e.to_string())?
 }
 
-fn calculate_dir_size(path: &Path) -> Result<u64, std::io::Error> {
-    let mut size = 0;
+/// Options for disk size calculation
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DiskSizeOptions {
+    /// Use actual disk usage (block-based) instead of logical file size
+    /// This matches what `du` reports and is more accurate for disk space
+    #[serde(default = "default_true")]
+    pub use_disk_blocks: bool,
+    /// Include node_modules directory in calculation
+    #[serde(default)]
+    pub include_node_modules: bool,
+    /// Include .git directory in calculation
+    #[serde(default)]
+    pub include_git: bool,
+    /// Include target directory (Rust/Cargo) in calculation
+    #[serde(default)]
+    pub include_target: bool,
+    /// Include all hidden files/directories
+    #[serde(default)]
+    pub include_hidden: bool,
+}
 
-    if path.is_file() {
-        return Ok(fs::metadata(path)?.len());
-    }
+fn default_true() -> bool {
+    true
+}
 
-    for entry in fs::read_dir(path)? {
-        let entry = entry?;
-        let path = entry.path();
+/// Detailed disk size breakdown
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiskSizeInfo {
+    /// Total size in bytes
+    pub total_bytes: u64,
+    /// Size of source code (excluding heavy directories)
+    pub source_bytes: u64,
+    /// Size of node_modules directory
+    pub node_modules_bytes: u64,
+    /// Size of .git directory
+    pub git_bytes: u64,
+    /// Size of target directory (Rust)
+    pub target_bytes: u64,
+    /// Number of files counted
+    pub file_count: u64,
+    /// Number of directories counted
+    pub dir_count: u64,
+    /// Human-readable total size
+    pub formatted: String,
+}
 
-        let name = path
+/// Calculate disk size with options
+/// Uses native macOS st_blocks for accurate disk usage
+fn calculate_dir_size_native(path: &Path, options: &DiskSizeOptions) -> DiskSizeInfo {
+    let mut info = DiskSizeInfo {
+        total_bytes: 0,
+        source_bytes: 0,
+        node_modules_bytes: 0,
+        git_bytes: 0,
+        target_bytes: 0,
+        file_count: 0,
+        dir_count: 0,
+        formatted: String::new(),
+    };
+
+    calculate_dir_size_recursive(path, options, &mut info, false, false, false);
+
+    // Format the total size
+    info.formatted = format_bytes(info.total_bytes);
+
+    info
+}
+
+fn calculate_dir_size_recursive(
+    path: &Path,
+    options: &DiskSizeOptions,
+    info: &mut DiskSizeInfo,
+    in_node_modules: bool,
+    in_git: bool,
+    in_target: bool,
+) {
+    let entries = match fs::read_dir(path) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let entry_path = entry.path();
+        let name = entry_path
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default();
-        if name == "node_modules" || name == ".git" || name == "target" {
+
+        // Skip hidden files/dirs unless explicitly included
+        if !options.include_hidden && name.starts_with('.') && name != ".git" {
             continue;
         }
 
-        if path.is_dir() {
-            size += calculate_dir_size(&path)?;
-        } else {
-            size += entry.metadata()?.len();
+        let metadata = match entry.metadata() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+
+        if metadata.is_file() {
+            // Use block-based size for accurate disk usage
+            // st_blocks is in 512-byte units on Unix
+            let size = if options.use_disk_blocks {
+                metadata.blocks() * 512
+            } else {
+                metadata.len()
+            };
+
+            info.file_count += 1;
+
+            // Categorize the size
+            if in_node_modules {
+                info.node_modules_bytes += size;
+            } else if in_git {
+                info.git_bytes += size;
+            } else if in_target {
+                info.target_bytes += size;
+            } else {
+                info.source_bytes += size;
+            }
+            info.total_bytes += size;
+        } else if metadata.is_dir() {
+            info.dir_count += 1;
+
+            // Check if this is a special directory
+            let is_node_modules = name == "node_modules";
+            let is_git = name == ".git";
+            let is_target = name == "target";
+
+            // Decide whether to include this directory
+            let should_include = if is_node_modules {
+                options.include_node_modules
+            } else if is_git {
+                options.include_git
+            } else if is_target {
+                options.include_target
+            } else {
+                true
+            };
+
+            if should_include {
+                calculate_dir_size_recursive(
+                    &entry_path,
+                    options,
+                    info,
+                    in_node_modules || is_node_modules,
+                    in_git || is_git,
+                    in_target || is_target,
+                );
+            }
         }
     }
+}
 
-    Ok(size)
+/// Format bytes into human-readable string
+fn format_bytes(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = KB * 1024;
+    const GB: u64 = MB * 1024;
+
+    if bytes >= GB {
+        format!("{:.2} GB", bytes as f64 / GB as f64)
+    } else if bytes >= MB {
+        format!("{:.2} MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.2} KB", bytes as f64 / KB as f64)
+    } else {
+        format!("{} B", bytes)
+    }
+}
+
+/// Legacy function for backward compatibility - calculates source size only
+fn calculate_dir_size(path: &Path) -> Result<u64, std::io::Error> {
+    let options = DiskSizeOptions {
+        use_disk_blocks: true,
+        include_node_modules: false,
+        include_git: false,
+        include_target: false,
+        include_hidden: false,
+    };
+    let info = calculate_dir_size_native(path, &options);
+    Ok(info.source_bytes)
 }
 
 #[tauri::command]
@@ -494,6 +650,7 @@ pub async fn delete_project(name: String, location: ProjectLocation) -> Result<(
     .map_err(|e| e.to_string())?
 }
 
+/// Get simple project size (source code only, for backward compatibility)
 #[tauri::command]
 pub async fn get_project_size(name: String) -> Result<Option<u64>, String> {
     let config_service = ConfigService::new();
@@ -515,6 +672,58 @@ pub async fn get_project_size(name: String) -> Result<Option<u64>, String> {
         };
 
         Ok(calculate_dir_size(&path).ok())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Get detailed disk size breakdown with options
+#[tauri::command]
+pub async fn get_project_disk_info(
+    name: String,
+    options: Option<DiskSizeOptions>,
+) -> Result<DiskSizeInfo, String> {
+    let config_service = ConfigService::new();
+    let config = config_service.load().map_err(|e| e.to_string())?;
+
+    let active_dir = config.active_dir.clone();
+    let archive_dir = config.archive_dir.clone();
+    let options = options.unwrap_or_default();
+
+    tokio::task::spawn_blocking(move || {
+        let active_path = Path::new(&active_dir).join(&name);
+        let archived_path = Path::new(&archive_dir).join(&name);
+
+        let path = if active_path.exists() {
+            active_path
+        } else if archived_path.exists() {
+            archived_path
+        } else {
+            return Err(format!("Project '{}' not found", name));
+        };
+
+        Ok(calculate_dir_size_native(&path, &options))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Calculate disk size for a given path (for archive page totals)
+#[tauri::command]
+pub async fn calculate_path_size(
+    path: String,
+    options: Option<DiskSizeOptions>,
+) -> Result<DiskSizeInfo, String> {
+    let options = options.unwrap_or_default();
+
+    tokio::task::spawn_blocking(move || {
+        let path = Path::new(&path);
+
+        if !path.exists() {
+            return Err(format!("Path '{}' does not exist", path.display()));
+        }
+
+        Ok(calculate_dir_size_native(path, &options))
     })
     .await
     .map_err(|e| e.to_string())?

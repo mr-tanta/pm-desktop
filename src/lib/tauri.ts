@@ -15,6 +15,8 @@ import type {
   Statistics,
   OutdatedPackage,
   InstalledEditor,
+  DiskSizeOptions,
+  DiskSizeInfo,
 } from "@/types";
 
 // Config commands
@@ -49,6 +51,20 @@ export async function deleteProject(name: string, location: ProjectLocation): Pr
 
 export async function getProjectSize(name: string): Promise<number | null> {
   return invoke("get_project_size", { name });
+}
+
+export async function getProjectDiskInfo(
+  name: string,
+  options?: DiskSizeOptions
+): Promise<DiskSizeInfo> {
+  return invoke("get_project_disk_info", { name, options });
+}
+
+export async function calculatePathSize(
+  path: string,
+  options?: DiskSizeOptions
+): Promise<DiskSizeInfo> {
+  return invoke("calculate_path_size", { path, options });
 }
 
 // System commands

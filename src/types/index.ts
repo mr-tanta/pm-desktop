@@ -139,3 +139,22 @@ export interface InstalledEditor {
   command: string;
   icon: string;
 }
+
+export interface DiskSizeOptions {
+  use_disk_blocks?: boolean;
+  include_node_modules?: boolean;
+  include_git?: boolean;
+  include_target?: boolean;
+  include_hidden?: boolean;
+}
+
+export interface DiskSizeInfo {
+  total_bytes: number;
+  source_bytes: number;
+  node_modules_bytes: number;
+  git_bytes: number;
+  target_bytes: number;
+  file_count: number;
+  dir_count: number;
+  formatted: string;
+}
