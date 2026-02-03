@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { useConfig } from "@/hooks/use-system";
 import { useUpdater } from "@/hooks/use-updater";
-import { saveConfig } from "@/lib/tauri";
-import { useQueryClient } from "@tanstack/react-query";
-import type { Config } from "@/types";
-import { Save, RotateCcw, FolderOpen, Code, GitBranch, Timer, Info, RefreshCw, Download, Check } from "lucide-react";
+import { saveConfig, getInstalledEditors } from "@/lib/tauri";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import type { Config, InstalledEditor } from "@/types";
+import { Save, RotateCcw, FolderOpen, Code, GitBranch, Timer, Info, RefreshCw, Download, Check, ChevronDown } from "lucide-react";
 
 const APP_VERSION = "0.1.0";
 
@@ -16,6 +16,12 @@ export function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const { checking, updateAvailable, checkForUpdates, downloadAndInstall, downloading, progress } = useUpdater();
   const [checkedOnce, setCheckedOnce] = useState(false);
+
+  const { data: installedEditors } = useQuery({
+    queryKey: ["installed-editors"],
+    queryFn: getInstalledEditors,
+    staleTime: 300000, // 5 minutes
+  });
 
   useEffect(() => {
     if (config) {
@@ -105,17 +111,17 @@ export function SettingsPage() {
         </Section>
 
         <Section title="Editor & Templates" icon={Code}>
-          <Field
+          <EditorSelect
             label="Default Editor"
             value={form.default_editor}
             onChange={(v) => setForm({ ...form, default_editor: v })}
-            placeholder="cursor"
+            editors={installedEditors || []}
           />
           <Field
             label="Default Template"
             value={form.default_template}
             onChange={(v) => setForm({ ...form, default_template: v })}
-            placeholder="next"
+            placeholder="nextjs"
           />
         </Section>
 
@@ -281,6 +287,73 @@ function Toggle({
           }`}
         />
       </button>
+    </div>
+  );
+}
+
+const EDITOR_ICONS: Record<string, string> = {
+  vscode: "💻",
+  cursor: "🖱️",
+  zed: "⚡",
+  sublime: "🔶",
+  jetbrains: "🧠",
+  vim: "📟",
+  neovim: "📟",
+  emacs: "🦬",
+  xcode: "🔨",
+  android: "🤖",
+  nova: "🌟",
+  textmate: "📝",
+  bbedit: "✏️",
+  helix: "🧬",
+  nano: "📄",
+  atom: "⚛️",
+};
+
+function EditorSelect({
+  label,
+  value,
+  onChange,
+  editors,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  editors: InstalledEditor[];
+}) {
+  const selectedEditor = editors.find((e) => e.command === value);
+
+  return (
+    <div>
+      <label className="block text-sm text-muted-foreground mb-1">{label}</label>
+      <div className="relative">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full px-3 py-2 pr-10 rounded-md bg-secondary border border-border text-sm focus:outline-none focus:ring-1 focus:ring-ring appearance-none cursor-pointer"
+        >
+          {editors.length === 0 ? (
+            <option value={value}>{value || "No editors detected"}</option>
+          ) : (
+            editors.map((editor) => (
+              <option key={editor.id} value={editor.command}>
+                {EDITOR_ICONS[editor.icon] || "📝"} {editor.name}
+              </option>
+            ))
+          )}
+        </select>
+        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+      </div>
+      {selectedEditor && (
+        <p className="text-xs text-muted-foreground mt-1">
+          Command: <code className="bg-secondary px-1 rounded">{selectedEditor.command}</code>
+        </p>
+      )}
+      {editors.length > 0 && (
+        <p className="text-xs text-muted-foreground mt-1">
+          {editors.length} editor{editors.length !== 1 ? "s" : ""} detected on your system
+        </p>
+      )}
     </div>
   );
 }

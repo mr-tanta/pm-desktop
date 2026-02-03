@@ -132,3 +132,10 @@ export interface OutdatedPackage {
   wanted: string;
   latest: string;
 }
+
+export interface InstalledEditor {
+  id: string;
+  name: string;
+  command: string;
+  icon: string;
+}

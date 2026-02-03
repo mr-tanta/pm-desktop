@@ -47,6 +47,7 @@ pub fn run() {
             projects::get_project_size,
             // System commands
             system::get_system_info,
+            system::get_installed_editors,
             system::open_in_editor,
             system::open_in_terminal,
             system::open_in_finder,

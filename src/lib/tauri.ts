@@ -14,6 +14,7 @@ import type {
   PlaygroundOptions,
   Statistics,
   OutdatedPackage,
+  InstalledEditor,
 } from "@/types";
 
 // Config commands
@@ -53,6 +54,10 @@ export async function getProjectSize(name: string): Promise<number | null> {
 // System commands
 export async function getSystemInfo(): Promise<SystemInfo> {
   return invoke("get_system_info");
+}
+
+export async function getInstalledEditors(): Promise<InstalledEditor[]> {
+  return invoke("get_installed_editors");
 }
 
 export async function openInEditor(path: string, editor: string): Promise<void> {
