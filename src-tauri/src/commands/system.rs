@@ -131,12 +131,30 @@ pub fn get_system_info() -> Result<SystemInfo, String> {
     sys.refresh_all();
 
     let disks = sysinfo::Disks::new_with_refreshed_list();
-    let (total_disk, used_disk) = disks.iter().fold((0, 0), |(total, used), disk| {
-        (
-            total + disk.total_space(),
-            used + (disk.total_space() - disk.available_space()),
-        )
-    });
+
+    // Find the root disk (/) - this is the main system disk on macOS
+    let (total_disk, used_disk) = disks
+        .iter()
+        .find(|disk| disk.mount_point() == Path::new("/"))
+        .map(|disk| {
+            (
+                disk.total_space(),
+                disk.total_space() - disk.available_space(),
+            )
+        })
+        .unwrap_or_else(|| {
+            // Fallback: use the largest disk if root not found
+            disks
+                .iter()
+                .max_by_key(|d| d.total_space())
+                .map(|disk| {
+                    (
+                        disk.total_space(),
+                        disk.total_space() - disk.available_space(),
+                    )
+                })
+                .unwrap_or((0, 0))
+        });
 
     let cpu_usage =
         sys.cpus().iter().map(|cpu| cpu.cpu_usage()).sum::<f32>() / sys.cpus().len() as f32;
