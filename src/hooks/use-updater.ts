@@ -8,6 +8,10 @@ interface UpdateInfo {
   body?: string;
 }
 
+// Check if updater is properly configured (has endpoints)
+// When endpoints are empty, the updater plugin will fail
+const UPDATER_CONFIGURED = false; // Set to true when update server is configured
+
 export function useUpdater() {
   const [checking, setChecking] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -16,6 +20,11 @@ export function useUpdater() {
   const [error, setError] = useState<string | null>(null);
 
   const checkForUpdates = useCallback(async () => {
+    // Skip if updater is not configured
+    if (!UPDATER_CONFIGURED) {
+      return null;
+    }
+
     setChecking(true);
     setError(null);
 

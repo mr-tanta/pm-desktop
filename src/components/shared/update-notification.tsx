@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Download, X, RefreshCw, AlertCircle } from "lucide-react";
 import { useUpdater } from "@/hooks/use-updater";
 
@@ -8,17 +7,12 @@ export function UpdateNotification() {
     progress,
     updateAvailable,
     error,
-    checkForUpdates,
     downloadAndInstall,
     dismissUpdate,
   } = useUpdater();
 
-  // Check for updates on mount (silent check)
-  useEffect(() => {
-    checkForUpdates();
-  }, [checkForUpdates]);
-
   // Don't render if no update and not downloading
+  // Note: Auto-check disabled until update server is configured
   if (!updateAvailable && !downloading && !error) {
     return null;
   }

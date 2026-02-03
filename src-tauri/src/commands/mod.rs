@@ -1,5 +1,8 @@
 pub mod config;
 pub mod create;
+pub mod disk_manager;
+pub mod permissions;
+pub mod port_manager;
 pub mod projects;
 pub mod statistics;
 pub mod system;

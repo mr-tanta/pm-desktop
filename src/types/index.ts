@@ -158,3 +158,250 @@ export interface DiskSizeInfo {
   dir_count: number;
   formatted: string;
 }
+
+// Disk Manager Types
+export type SafetyLevel = "safe" | "moderate" | "aggressive";
+
+export type DiskCategory =
+  | "safe_to_clean"
+  | "build_artifacts"
+  | "package_managers"
+  | "dev_tools"
+  | "app_caches"
+  | "docker"
+  | "system"
+  | "trash";
+
+export interface ScannableItem {
+  id: string;
+  name: string;
+  path: string;
+  category: DiskCategory;
+  safety_level: SafetyLevel;
+  size_bytes: number;
+  formatted_size: string;
+  file_count: number;
+  description: string;
+  icon: string;
+  children: ScannableItem[];
+  exists: boolean;
+}
+
+export interface CategorySummary {
+  category: DiskCategory;
+  name: string;
+  size_bytes: number;
+  formatted_size: string;
+  item_count: number;
+  safety_level: SafetyLevel;
+  icon: string;
+  description: string;
+}
+
+export interface DiskScanResult {
+  total_size_bytes: number;
+  cleanable_size_bytes: number;
+  formatted_total: string;
+  formatted_cleanable: string;
+  items: ScannableItem[];
+  categories: CategorySummary[];
+  scan_duration_ms: number;
+}
+
+export interface CleanupOptions {
+  item_ids: string[];
+  safety_level: SafetyLevel;
+  move_to_trash?: boolean;
+  dry_run?: boolean;
+}
+
+export interface CleanupPreview {
+  items: ScannableItem[];
+  total_size_bytes: number;
+  formatted_size: string;
+  total_files: number;
+  warnings: string[];
+}
+
+export interface CleanupResult {
+  success: boolean;
+  freed_bytes: number;
+  formatted_freed: string;
+  deleted_count: number;
+  failed_count: number;
+  errors: string[];
+}
+
+export interface CleanupHistoryEntry {
+  id: string;
+  timestamp: string;
+  freed_bytes: number;
+  formatted_freed: string;
+  item_count: number;
+  categories: string[];
+}
+
+export interface ScanProgressEvent {
+  current_path: string;
+  items_found: number;
+  bytes_scanned: number;
+  progress_percent: number;
+}
+
+// Permissions Types
+export interface PermissionStatus {
+  id: string;
+  name: string;
+  description: string;
+  required: boolean;
+  granted: boolean;
+  can_prompt: boolean;
+  settings_url: string;
+}
+
+export interface PermissionsResult {
+  permissions: PermissionStatus[];
+  all_granted: boolean;
+  required_granted: boolean;
+  app_path: string;
+}
+
+// ==================== Port Manager Types ====================
+
+export type Protocol = "tcp" | "udp";
+
+export type ConnectionState =
+  | "listen"
+  | "established"
+  | "time_wait"
+  | "close_wait"
+  | "syn_sent"
+  | "syn_received"
+  | "fin_wait1"
+  | "fin_wait2"
+  | "closing"
+  | "last_ack"
+  | "closed"
+  | "unknown";
+
+export type PortCategory =
+  | "dev_server"
+  | "database"
+  | "system"
+  | "docker"
+  | "node_process"
+  | "other";
+
+export interface ProcessInfo {
+  pid: number;
+  name: string;
+  command: string;
+  user: string;
+  cpu_percent: number;
+  memory_bytes: number;
+  memory_percent: number;
+  parent_pid: number | null;
+  children_pids: number[];
+  start_time: string | null;
+  project_name: string | null;
+  working_directory: string | null;
+}
+
+export interface PortEntry {
+  port: number;
+  protocol: Protocol;
+  state: ConnectionState;
+  local_address: string;
+  remote_address: string | null;
+  process: ProcessInfo | null;
+  category: PortCategory;
+  is_common_dev_port: boolean;
+}
+
+export interface NetworkConnection {
+  local_address: string;
+  local_port: number;
+  remote_address: string;
+  remote_port: number;
+  protocol: Protocol;
+  state: ConnectionState;
+  pid: number | null;
+  process_name: string | null;
+}
+
+export interface PortCategorySummary {
+  category: PortCategory;
+  name: string;
+  count: number;
+  icon: string;
+  ports: number[];
+}
+
+export interface PortScanResult {
+  ports: PortEntry[];
+  connections: NetworkConnection[];
+  total_listening: number;
+  total_established: number;
+  categories: PortCategorySummary[];
+  scan_duration_ms: number;
+}
+
+export interface PortScanOptions {
+  port_range?: [number, number];
+  protocols?: Protocol[];
+  states?: ConnectionState[];
+  categories?: PortCategory[];
+  include_system_ports?: boolean;
+}
+
+export interface PortScanProgress {
+  stage: string;
+  progress_percent: number;
+  ports_found: number;
+}
+
+export interface KillResult {
+  success: boolean;
+  pid: number | null;
+  port: number | null;
+  message: string;
+}
+
+export interface BatchKillResult {
+  total: number;
+  succeeded: number;
+  failed: number;
+  results: KillResult[];
+}
+
+export type PortWatchType = "available" | "taken";
+
+export interface PortWatch {
+  id: string;
+  port: number;
+  watch_type: PortWatchType;
+  notify: boolean;
+  created_at: string;
+}
+
+export interface PortHistoryEntry {
+  port: number;
+  process_name: string;
+  pid: number;
+  timestamp: string;
+  action: string;
+}
+
+export interface ProcessTreeNode {
+  pid: number;
+  name: string;
+  command: string;
+  children: ProcessTreeNode[];
+}
+
+// Common dev port info
+export interface CommonDevPort {
+  port: number;
+  name: string;
+  description: string;
+}

@@ -1,26 +1,31 @@
 import { useState, useEffect } from "react";
 import { useConfig } from "@/hooks/use-system";
-import { useUpdater } from "@/hooks/use-updater";
-import { saveConfig, getInstalledEditors } from "@/lib/tauri";
+import { useAppStore } from "@/stores/app-store";
+import { saveConfig, getInstalledEditors, getPermissions } from "@/lib/tauri";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import type { Config, InstalledEditor } from "@/types";
-import { Save, RotateCcw, FolderOpen, Code, GitBranch, Timer, Info, RefreshCw, Download, Check, ChevronDown } from "lucide-react";
+import { Save, RotateCcw, FolderOpen, Code, GitBranch, Timer, Info, ChevronDown, Shield, ChevronRight, ShieldCheck, ShieldX } from "lucide-react";
 
 const APP_VERSION = "0.1.0";
 
 export function SettingsPage() {
   const { data: config, isLoading } = useConfig();
   const queryClient = useQueryClient();
+  const setView = useAppStore((s) => s.setView);
   const [form, setForm] = useState<Config | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const { checking, updateAvailable, checkForUpdates, downloadAndInstall, downloading, progress } = useUpdater();
-  const [checkedOnce, setCheckedOnce] = useState(false);
 
   const { data: installedEditors } = useQuery({
     queryKey: ["installed-editors"],
     queryFn: getInstalledEditors,
     staleTime: 300000, // 5 minutes
+  });
+
+  const { data: permissionsResult } = useQuery({
+    queryKey: ["permissions"],
+    queryFn: getPermissions,
+    staleTime: 30000, // 30 seconds
   });
 
   useEffect(() => {
@@ -155,57 +160,39 @@ export function SettingsPage() {
           />
         </Section>
 
+        <Section title="Permissions" icon={Shield}>
+          <button
+            onClick={() => setView("permissions")}
+            className="w-full flex items-center justify-between p-3 -m-1 rounded-lg hover:bg-secondary/50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              {permissionsResult?.required_granted ? (
+                <ShieldCheck className="h-5 w-5 text-green-500" />
+              ) : (
+                <ShieldX className="h-5 w-5 text-yellow-500" />
+              )}
+              <div className="text-left">
+                <p className="text-sm font-medium">System Permissions</p>
+                <p className="text-xs text-muted-foreground">
+                  {permissionsResult?.required_granted
+                    ? "All required permissions granted"
+                    : "Some permissions need to be granted"}
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </Section>
+
         <Section title="About" icon={Info}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium">PM Desktop</p>
               <p className="text-xs text-muted-foreground">Version {APP_VERSION}</p>
             </div>
-            {updateAvailable ? (
-              <button
-                onClick={downloadAndInstall}
-                disabled={downloading}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 rounded-md transition-colors disabled:opacity-50"
-              >
-                {downloading ? (
-                  <>
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    {progress}%
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-3.5 w-3.5" />
-                    Update to {updateAvailable.version}
-                  </>
-                )}
-              </button>
-            ) : (
-              <button
-                onClick={async () => {
-                  await checkForUpdates();
-                  setCheckedOnce(true);
-                }}
-                disabled={checking}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary hover:bg-secondary/80 rounded-md transition-colors disabled:opacity-50"
-              >
-                {checking ? (
-                  <>
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    Checking...
-                  </>
-                ) : checkedOnce ? (
-                  <>
-                    <Check className="h-3.5 w-3.5 text-green-400" />
-                    Up to date
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    Check for Updates
-                  </>
-                )}
-              </button>
-            )}
+            <span className="text-xs text-muted-foreground">
+              Updates coming soon
+            </span>
           </div>
         </Section>
       </div>

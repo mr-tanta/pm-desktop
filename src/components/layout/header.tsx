@@ -1,10 +1,10 @@
 import { useAppStore } from "@/stores/app-store";
 import { formatDuration } from "@/lib/utils";
 import { useActiveTimer, useStopTimer } from "@/hooks/use-timer";
-import { Timer, Square, Search, Settings } from "lucide-react";
+import { Timer, Square, Search, Settings, ZoomIn, ZoomOut } from "lucide-react";
 
 export function Header() {
-  const { currentView, setView } = useAppStore();
+  const { currentView, setView, zoomLevel, zoomIn, zoomOut, resetZoom } = useAppStore();
   const { data: activeTimer } = useActiveTimer();
   const stopTimerMutation = useStopTimer();
 
@@ -27,7 +27,39 @@ export function Header() {
           {currentView === "create-project" && "New Project"}
           {currentView === "statistics" && "Statistics"}
           {currentView === "archive" && "Archive"}
+          {currentView === "disk-manager" && "Disk Manager"}
+          {currentView === "port-manager" && "Port Manager"}
+          {currentView === "permissions" && "Permissions"}
         </h1>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {/* Zoom Controls */}
+        <div className="flex items-center gap-1 border-r border-border pr-2 mr-1">
+          <button
+            onClick={zoomOut}
+            disabled={zoomLevel <= 50}
+            className="p-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Zoom out (Cmd+-)"
+          >
+            <ZoomOut className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={resetZoom}
+            className="px-1.5 py-0.5 text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-secondary rounded min-w-[40px] text-center"
+            title="Reset zoom"
+          >
+            {zoomLevel}%
+          </button>
+          <button
+            onClick={zoomIn}
+            disabled={zoomLevel >= 150}
+            className="p-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Zoom in (Cmd++)"
+          >
+            <ZoomIn className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">

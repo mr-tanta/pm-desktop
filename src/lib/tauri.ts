@@ -17,6 +17,25 @@ import type {
   InstalledEditor,
   DiskSizeOptions,
   DiskSizeInfo,
+  DiskScanResult,
+  DiskCategory,
+  ScannableItem,
+  CleanupOptions,
+  CleanupPreview,
+  CleanupResult,
+  CleanupHistoryEntry,
+  PermissionsResult,
+  // Port Manager types
+  PortScanResult,
+  PortScanOptions,
+  KillResult,
+  BatchKillResult,
+  ProcessInfo,
+  ProcessTreeNode,
+  NetworkConnection,
+  PortWatch,
+  PortWatchType,
+  PortHistoryEntry,
 } from "@/types";
 
 // Config commands
@@ -152,4 +171,138 @@ export async function copyToClipboard(text: string): Promise<void> {
 
 export async function checkOutdatedPackages(projectPath: string): Promise<OutdatedPackage[]> {
   return invoke("check_outdated_packages", { projectPath });
+}
+
+// Disk Manager commands
+export async function scanDisk(): Promise<DiskScanResult> {
+  return invoke("scan_disk");
+}
+
+export async function cancelDiskScan(): Promise<void> {
+  return invoke("cancel_disk_scan");
+}
+
+export async function scanCategory(category: DiskCategory): Promise<ScannableItem[]> {
+  return invoke("scan_category", { category });
+}
+
+export async function previewCleanup(
+  options: CleanupOptions,
+  allItems: ScannableItem[]
+): Promise<CleanupPreview> {
+  return invoke("preview_cleanup", { options, allItems });
+}
+
+export async function executeCleanup(
+  options: CleanupOptions,
+  allItems: ScannableItem[]
+): Promise<CleanupResult> {
+  return invoke("execute_cleanup", { options, allItems });
+}
+
+export async function emptyTrash(): Promise<CleanupResult> {
+  return invoke("empty_trash");
+}
+
+export async function getCleanupHistory(): Promise<CleanupHistoryEntry[]> {
+  return invoke("get_cleanup_history");
+}
+
+export async function getTrashSize(): Promise<ScannableItem> {
+  return invoke("get_trash_size");
+}
+
+// Permissions commands
+export async function getPermissions(): Promise<PermissionsResult> {
+  return invoke("get_permissions");
+}
+
+export async function triggerFilesPermission(): Promise<boolean> {
+  return invoke("trigger_files_permission");
+}
+
+export async function openFullDiskAccessSettings(): Promise<void> {
+  return invoke("open_full_disk_access_settings");
+}
+
+export async function openPrivacySettings(settingsUrl: string): Promise<void> {
+  return invoke("open_privacy_settings", { settingsUrl });
+}
+
+export async function requestFullDiskAccessWithDialog(): Promise<void> {
+  return invoke("request_full_disk_access_with_dialog");
+}
+
+export async function getAppPath(): Promise<string> {
+  return invoke("get_app_path");
+}
+
+export async function checkFullDiskAccessStatus(): Promise<boolean> {
+  return invoke("check_full_disk_access_status");
+}
+
+// ==================== Port Manager commands ====================
+
+export async function scanPorts(options?: PortScanOptions): Promise<PortScanResult> {
+  return invoke("scan_ports", { options });
+}
+
+export async function scanDevPorts(): Promise<PortScanResult> {
+  return invoke("scan_dev_ports");
+}
+
+export async function cancelPortScan(): Promise<void> {
+  return invoke("cancel_port_scan");
+}
+
+export async function checkPortAvailable(port: number): Promise<boolean> {
+  return invoke("check_port_available", { port });
+}
+
+export async function killProcess(pid: number, force: boolean = false): Promise<KillResult> {
+  return invoke("kill_process", { pid, force });
+}
+
+export async function killPort(port: number, force: boolean = false): Promise<KillResult> {
+  return invoke("kill_port", { port, force });
+}
+
+export async function batchKillProcesses(pids: number[], force: boolean = false): Promise<BatchKillResult> {
+  return invoke("batch_kill_processes", { pids, force });
+}
+
+export async function batchKillPorts(ports: number[], force: boolean = false): Promise<BatchKillResult> {
+  return invoke("batch_kill_ports", { ports, force });
+}
+
+export async function getProcessDetails(pid: number): Promise<ProcessInfo> {
+  return invoke("get_process_details", { pid });
+}
+
+export async function getProcessTree(pid: number): Promise<ProcessTreeNode> {
+  return invoke("get_process_tree", { pid });
+}
+
+export async function getNetworkConnections(): Promise<NetworkConnection[]> {
+  return invoke("get_network_connections");
+}
+
+export async function addPortWatch(port: number, watchType: PortWatchType, notify: boolean): Promise<PortWatch> {
+  return invoke("add_port_watch", { port, watchType, notify });
+}
+
+export async function removePortWatch(watchId: string): Promise<void> {
+  return invoke("remove_port_watch", { watchId });
+}
+
+export async function getPortWatches(): Promise<PortWatch[]> {
+  return invoke("get_port_watches");
+}
+
+export async function getPortHistory(port?: number, limit?: number): Promise<PortHistoryEntry[]> {
+  return invoke("get_port_history", { port, limit });
+}
+
+export async function getCommonDevPorts(): Promise<number[]> {
+  return invoke("get_common_dev_ports");
 }

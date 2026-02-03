@@ -9,6 +9,9 @@ import { CreateProject } from "@/components/projects/create-project";
 import { StatisticsPage } from "@/components/statistics/statistics-page";
 import { ArchivePage } from "@/components/archive/archive-page";
 import { SettingsPage } from "@/components/settings/settings-page";
+import { DiskManagerPage } from "@/components/disk-manager";
+import { PortManagerPage } from "@/components/port-manager";
+import { PermissionsPage } from "@/components/permissions";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { UpdateNotification } from "@/components/shared/update-notification";
 import { useAppStore } from "@/stores/app-store";
@@ -63,6 +66,9 @@ function AppContent() {
       {currentView === "statistics" && <StatisticsPage />}
       {currentView === "archive" && <ArchivePage />}
       {currentView === "settings" && <SettingsPage />}
+      {currentView === "disk-manager" && <DiskManagerPage />}
+      {currentView === "port-manager" && <PortManagerPage />}
+      {currentView === "permissions" && <PermissionsPage />}
       <CommandPalette
         open={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}

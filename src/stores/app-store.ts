@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { Config, ActiveTimer } from "@/types";
 
-type View = "dashboard" | "projects" | "settings" | "project-detail" | "create-project" | "statistics" | "archive";
+type View = "dashboard" | "projects" | "settings" | "project-detail" | "create-project" | "statistics" | "archive" | "disk-manager" | "port-manager" | "permissions";
 
 interface AppState {
   // Navigation
@@ -21,6 +21,13 @@ interface AppState {
   // UI State
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
+
+  // Zoom
+  zoomLevel: number;
+  setZoomLevel: (level: number) => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  resetZoom: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -42,4 +49,11 @@ export const useAppStore = create<AppState>((set) => ({
   // UI State
   sidebarCollapsed: false,
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+
+  // Zoom (50% to 150%)
+  zoomLevel: 100,
+  setZoomLevel: (level) => set({ zoomLevel: Math.min(150, Math.max(50, level)) }),
+  zoomIn: () => set((state) => ({ zoomLevel: Math.min(150, state.zoomLevel + 10) })),
+  zoomOut: () => set((state) => ({ zoomLevel: Math.max(50, state.zoomLevel - 10) })),
+  resetZoom: () => set({ zoomLevel: 100 }),
 }));

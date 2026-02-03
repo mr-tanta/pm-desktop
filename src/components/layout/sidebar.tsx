@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
 import { useProjects } from "@/hooks/use-projects";
-import { LayoutDashboard, FolderKanban, Archive, ChevronLeft, ChevronRight, Plus, BarChart3 } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Archive, ChevronLeft, ChevronRight, Plus, BarChart3, HardDrive, Network } from "lucide-react";
 
 export function Sidebar() {
   const { currentView, setView, sidebarCollapsed, toggleSidebar, setSelectedProject } = useAppStore();
@@ -30,6 +30,16 @@ export function Sidebar() {
       id: "statistics" as const,
       label: "Statistics",
       icon: BarChart3,
+    },
+    {
+      id: "disk-manager" as const,
+      label: "Disk Manager",
+      icon: HardDrive,
+    },
+    {
+      id: "port-manager" as const,
+      label: "Port Manager",
+      icon: Network,
     },
   ];
 

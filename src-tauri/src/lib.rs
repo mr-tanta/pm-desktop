@@ -3,7 +3,7 @@ mod models;
 mod services;
 mod tray;
 
-use commands::{config, create, projects, statistics, system, timer};
+use commands::{config, create, disk_manager, permissions, port_manager, projects, statistics, system, timer};
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -71,6 +71,46 @@ pub fn run() {
             statistics::kill_node_processes,
             statistics::copy_to_clipboard,
             statistics::check_outdated_packages,
+            // Disk Manager commands
+            disk_manager::scan_disk,
+            disk_manager::cancel_disk_scan,
+            disk_manager::scan_category,
+            disk_manager::preview_cleanup,
+            disk_manager::execute_cleanup,
+            disk_manager::empty_trash,
+            disk_manager::get_cleanup_history,
+            disk_manager::get_trash_size,
+            // Permissions commands
+            permissions::get_permissions,
+            permissions::trigger_files_permission,
+            permissions::open_full_disk_access_settings,
+            permissions::open_privacy_settings,
+            permissions::request_full_disk_access_with_dialog,
+            permissions::get_app_path,
+            permissions::check_full_disk_access_status,
+            // Port Manager commands
+            port_manager::scan_ports,
+            port_manager::scan_dev_ports,
+            port_manager::cancel_port_scan,
+            port_manager::check_port_available,
+            port_manager::kill_process,
+            port_manager::kill_port,
+            port_manager::batch_kill_processes,
+            port_manager::batch_kill_ports,
+            port_manager::get_process_details,
+            port_manager::get_process_tree,
+            port_manager::get_network_connections,
+            port_manager::add_port_watch,
+            port_manager::remove_port_watch,
+            port_manager::get_port_watches,
+            port_manager::get_port_history,
+            port_manager::get_common_dev_ports,
+            // Tray popup commands
+            tray::get_recent_projects_list,
+            tray::emit_open_project,
+            tray::open_in_editor_cmd,
+            tray::show_main_window,
+            tray::quit_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

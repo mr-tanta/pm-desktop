@@ -1,38 +1,50 @@
 use crate::services::ConfigService;
 use std::fs;
 use std::path::Path;
+use std::process::Command as StdCommand;
 use tauri::{
     image::Image,
-    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, Runtime,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Runtime, WebviewWindowBuilder,
 };
 
 pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    let menu = build_tray_menu(app)?;
-
     // Load icon from app resources
     let icon = app
         .default_window_icon()
         .cloned()
         .unwrap_or_else(|| Image::new_owned(vec![0; 32 * 32 * 4], 32, 32));
 
+    // Pre-create the popup window (hidden) so it loads instantly when needed
+    let _ = WebviewWindowBuilder::new(
+        app,
+        "tray-popup",
+        tauri::WebviewUrl::App("index.html#tray".into()),
+    )
+    .title("")
+    .inner_size(320.0, 480.0)
+    .decorations(false)
+    .transparent(true)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .resizable(false)
+    .visible(false)
+    .build();
+
     let tray = TrayIconBuilder::with_id("main-tray")
         .icon(icon)
-        .menu(&menu)
-        .show_menu_on_left_click(false)
-        .on_menu_event(|app, event| {
-            handle_menu_event(app, event.id.as_ref());
-        })
+        .tooltip("PM Desktop")
         .on_tray_icon_event(|tray, event| {
+            let app = tray.app_handle();
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
+                position,
                 ..
             } = event
             {
-                let app = tray.app_handle();
-                toggle_window_visibility(app);
+                // Position popup below the click position
+                toggle_tray_popup(app, position.x, position.y + 5.0);
             }
         })
         .build(app)?;
@@ -43,49 +55,39 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
-fn build_tray_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
+fn toggle_tray_popup<R: Runtime>(app: &AppHandle<R>, x: f64, y: f64) {
+    if let Some(popup) = app.get_webview_window("tray-popup") {
+        if popup.is_visible().unwrap_or(false) {
+            let _ = popup.hide();
+        } else {
+            position_popup(&popup, x, y);
+            let _ = popup.show();
+            let _ = popup.set_focus();
+        }
+    }
+}
+
+fn position_popup<R: Runtime>(window: &tauri::WebviewWindow<R>, x: f64, y: f64) {
+    let width = 320.0;
+    let height = 480.0;
+
+    // Position popup below the tray icon, centered
+    let popup_x = x - (width / 2.0);
+    let popup_y = y + 4.0;
+
+    let _ = window.set_size(LogicalSize::new(width, height));
+    let _ = window.set_position(LogicalPosition::new(popup_x, popup_y));
+}
+
+// ==================== COMMANDS FOR TRAY POPUP ====================
+
+/// Get list of recent project names
+#[tauri::command]
+pub fn get_recent_projects_list(limit: usize) -> Result<Vec<String>, String> {
     let config_service = ConfigService::new();
     let config = config_service.load().unwrap_or_default();
-
-    // Get recent projects
     let active_dir = Path::new(&config.active_dir);
-    let recent_projects = get_recent_projects(active_dir, 5);
-
-    let menu = Menu::new(app)?;
-
-    // Timer section
-    let timer_item = MenuItem::with_id(app, "timer", "No active timer", false, None::<&str>)?;
-    menu.append(&timer_item)?;
-    menu.append(&PredefinedMenuItem::separator(app)?)?;
-
-    // Recent projects submenu
-    if !recent_projects.is_empty() {
-        let projects_submenu = Submenu::new(app, "Recent Projects", true)?;
-        for project in recent_projects {
-            let item = MenuItem::with_id(
-                app,
-                format!("project:{}", project),
-                &project,
-                true,
-                None::<&str>,
-            )?;
-            projects_submenu.append(&item)?;
-        }
-        menu.append(&projects_submenu)?;
-        menu.append(&PredefinedMenuItem::separator(app)?)?;
-    }
-
-    // Window controls
-    let show_item = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
-    menu.append(&show_item)?;
-
-    menu.append(&PredefinedMenuItem::separator(app)?)?;
-
-    // Quit
-    let quit_item = MenuItem::with_id(app, "quit", "Quit PM Desktop", true, None::<&str>)?;
-    menu.append(&quit_item)?;
-
-    Ok(menu)
+    Ok(get_recent_projects(active_dir, limit))
 }
 
 fn get_recent_projects(dir: &Path, limit: usize) -> Vec<String> {
@@ -122,44 +124,84 @@ fn get_recent_projects(dir: &Path, limit: usize) -> Vec<String> {
         .collect()
 }
 
-fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event_id: &str) {
-    match event_id {
-        "show" => {
-            toggle_window_visibility(app);
-        }
-        "quit" => {
-            app.exit(0);
-        }
-        id if id.starts_with("project:") => {
-            let project_name = id.strip_prefix("project:").unwrap();
-            // Emit event to frontend to open project
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.emit("open-project", project_name);
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
-        }
-        _ => {}
+/// Emit open-project event to main window
+#[tauri::command]
+pub fn emit_open_project<R: Runtime>(app: AppHandle<R>, project_name: String) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.emit("open-project", &project_name);
+        let _ = window.show();
+        let _ = window.set_focus();
     }
+    Ok(())
 }
 
-fn toggle_window_visibility<R: Runtime>(app: &AppHandle<R>) {
-    if let Some(window) = app.get_webview_window("main") {
-        if window.is_visible().unwrap_or(false) {
-            let _ = window.hide();
-        } else {
-            let _ = window.show();
-            let _ = window.set_focus();
+/// Open project in editor
+#[tauri::command]
+pub fn open_in_editor_cmd(path: String, editor: String) -> Result<(), String> {
+    let path_ref = Path::new(&path);
+    open_in_editor(&editor, path_ref)
+}
+
+fn open_in_editor(editor: &str, path: &Path) -> Result<(), String> {
+    let path_str = path.to_string_lossy();
+
+    let (cmd, args): (&str, Vec<&str>) = match editor.to_lowercase().as_str() {
+        "cursor" => ("cursor", vec![&path_str]),
+        "code" | "vscode" => ("code", vec![&path_str]),
+        "zed" => ("zed", vec![&path_str]),
+        "sublime" | "subl" => ("subl", vec![&path_str]),
+        "atom" => ("atom", vec![&path_str]),
+        "vim" | "nvim" => {
+            return open_in_terminal(editor, path);
         }
+        _ => (editor, vec![&path_str]),
+    };
+
+    StdCommand::new(cmd)
+        .args(&args)
+        .spawn()
+        .map_err(|e| format!("Failed to open {}: {}", editor, e))?;
+
+    Ok(())
+}
+
+fn open_in_terminal(editor: &str, path: &Path) -> Result<(), String> {
+    let path_str = path.to_string_lossy();
+
+    let script = format!(
+        r#"tell application "Terminal"
+            do script "cd '{}' && {}"
+            activate
+        end tell"#,
+        path_str, editor
+    );
+
+    StdCommand::new("osascript")
+        .args(["-e", &script])
+        .spawn()
+        .map_err(|e| format!("Failed to open terminal: {}", e))?;
+
+    Ok(())
+}
+
+/// Show the main window
+#[tauri::command]
+pub fn show_main_window<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
     }
+    Ok(())
+}
+
+/// Quit the application
+#[tauri::command]
+pub fn quit_app<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    app.exit(0);
+    Ok(())
 }
 
 #[allow(dead_code)]
-pub fn update_timer_status<R: Runtime>(app: &AppHandle<R>, _status: Option<(String, i64)>) {
-    if let Some(tray) = app.try_state::<tauri::tray::TrayIcon<R>>() {
-        if let Ok(menu) = build_tray_menu(app) {
-            // Menu items are rebuilt on each menu open
-            let _ = tray.set_menu(Some(menu));
-        }
-    }
+pub fn update_timer_status<R: Runtime>(_app: &AppHandle<R>, _status: Option<(String, i64)>) {
+    // No longer needed with custom popup
 }
