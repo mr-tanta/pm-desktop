@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { Config, ActiveTimer } from "@/types";
 
-type View = "dashboard" | "projects" | "settings" | "project-detail" | "create-project" | "statistics";
+type View = "dashboard" | "projects" | "settings" | "project-detail" | "create-project" | "statistics" | "archive";
 
 interface AppState {
   // Navigation

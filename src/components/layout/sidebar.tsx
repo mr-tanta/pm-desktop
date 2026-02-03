@@ -21,6 +21,12 @@ export function Sidebar() {
       count: activeProjects?.length,
     },
     {
+      id: "archive" as const,
+      label: "Archive",
+      icon: Archive,
+      count: archivedProjects?.length,
+    },
+    {
       id: "statistics" as const,
       label: "Statistics",
       icon: BarChart3,
@@ -81,15 +87,7 @@ export function Sidebar() {
           </button>
         </nav>
 
-        {!sidebarCollapsed && archivedProjects && archivedProjects.length > 0 && (
-          <div className="mt-6 px-2">
-            <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground uppercase tracking-wider">
-              <Archive className="h-3 w-3" />
-              Archived ({archivedProjects.length})
-            </div>
-          </div>
-        )}
-      </div>
+              </div>
 
       <div className="p-2 border-t border-border">
         <button

@@ -7,6 +7,7 @@ import { ProjectList } from "@/components/projects/project-list";
 import { ProjectDetail } from "@/components/projects/project-detail";
 import { CreateProject } from "@/components/projects/create-project";
 import { StatisticsPage } from "@/components/statistics/statistics-page";
+import { ArchivePage } from "@/components/archive/archive-page";
 import { SettingsPage } from "@/components/settings/settings-page";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { UpdateNotification } from "@/components/shared/update-notification";
@@ -60,6 +61,7 @@ function AppContent() {
       {currentView === "project-detail" && <ProjectDetail />}
       {currentView === "create-project" && <CreateProject />}
       {currentView === "statistics" && <StatisticsPage />}
+      {currentView === "archive" && <ArchivePage />}
       {currentView === "settings" && <SettingsPage />}
       <CommandPalette
         open={commandPaletteOpen}
