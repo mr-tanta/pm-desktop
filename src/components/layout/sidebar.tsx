@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
 import { useProjects } from "@/hooks/use-projects";
-import { LayoutDashboard, FolderKanban, Archive, ChevronLeft, ChevronRight } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Archive, ChevronLeft, ChevronRight, Plus, BarChart3 } from "lucide-react";
 
 export function Sidebar() {
   const { currentView, setView, sidebarCollapsed, toggleSidebar, setSelectedProject } = useAppStore();
@@ -20,6 +20,11 @@ export function Sidebar() {
       icon: FolderKanban,
       count: activeProjects?.length,
     },
+    {
+      id: "statistics" as const,
+      label: "Statistics",
+      icon: BarChart3,
+    },
   ];
 
   return (
@@ -33,7 +38,8 @@ export function Sidebar() {
         <nav className="space-y-1 px-2">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = currentView === item.id || (currentView === "project-detail" && item.id === "projects");
+            const isActive = currentView === item.id ||
+              ((currentView === "project-detail" || currentView === "create-project") && item.id === "projects");
 
             return (
               <button
@@ -61,6 +67,18 @@ export function Sidebar() {
               </button>
             );
           })}
+
+          {/* New Project Button */}
+          <button
+            onClick={() => setView("create-project")}
+            className={cn(
+              "w-full flex items-center gap-3 px-3 py-2 mt-2 rounded-md text-sm transition-colors",
+              "bg-primary/10 text-primary hover:bg-primary/20"
+            )}
+          >
+            <Plus className="h-4 w-4 shrink-0" />
+            {!sidebarCollapsed && <span>New Project</span>}
+          </button>
         </nav>
 
         {!sidebarCollapsed && archivedProjects && archivedProjects.length > 0 && (

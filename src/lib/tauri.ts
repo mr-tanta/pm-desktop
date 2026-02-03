@@ -7,6 +7,13 @@ import type {
   Config,
   ActiveTimer,
   TimeEntry,
+  ProjectTemplate,
+  CreateProjectOptions,
+  CreateProjectResult,
+  CloneOptions,
+  PlaygroundOptions,
+  Statistics,
+  OutdatedPackage,
 } from "@/types";
 
 // Config commands
@@ -82,4 +89,46 @@ export async function getTimeEntries(
   limit?: number
 ): Promise<TimeEntry[]> {
   return invoke("get_time_entries", { projectName, limit });
+}
+
+// Create project commands
+export async function listTemplates(): Promise<ProjectTemplate[]> {
+  return invoke("list_templates");
+}
+
+export async function createProject(options: CreateProjectOptions): Promise<CreateProjectResult> {
+  return invoke("create_project", { options });
+}
+
+export async function checkToolInstalled(tool: string): Promise<boolean> {
+  return invoke("check_tool_installed", { tool });
+}
+
+export async function cloneRepository(options: CloneOptions): Promise<CreateProjectResult> {
+  return invoke("clone_repository", { options });
+}
+
+export async function createPlayground(options: PlaygroundOptions): Promise<CreateProjectResult> {
+  return invoke("create_playground", { options });
+}
+
+// Statistics commands
+export async function getStatistics(): Promise<Statistics> {
+  return invoke("get_statistics");
+}
+
+export async function runDevServer(projectPath: string): Promise<void> {
+  return invoke("run_dev_server", { projectPath });
+}
+
+export async function killNodeProcesses(): Promise<number> {
+  return invoke("kill_node_processes");
+}
+
+export async function copyToClipboard(text: string): Promise<void> {
+  return invoke("copy_to_clipboard", { text });
+}
+
+export async function checkOutdatedPackages(projectPath: string): Promise<OutdatedPackage[]> {
+  return invoke("check_outdated_packages", { projectPath });
 }

@@ -66,3 +66,69 @@ export interface ActiveTimer {
   started_at: string;
   elapsed_seconds: number;
 }
+
+export interface ProjectTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  command: string | null;
+  icon: string;
+}
+
+export interface CreateProjectOptions {
+  name: string;
+  template: string;
+  init_git: boolean;
+  open_in_editor: boolean;
+  create_github_repo: boolean;
+  github_visibility: string | null;
+}
+
+export interface CreateProjectResult {
+  success: boolean;
+  path: string;
+  message: string;
+  github_url: string | null;
+}
+
+export interface CloneOptions {
+  url: string;
+  name: string | null;
+  shallow: boolean;
+  open_in_editor: boolean;
+}
+
+export interface PlaygroundOptions {
+  name: string | null;
+  open_in_editor: boolean;
+}
+
+export interface ProjectTypeCount {
+  project_type: string;
+  count: number;
+}
+
+export interface GitActivityStats {
+  total_commits_7d: number;
+  projects_with_changes: number;
+  total_uncommitted_changes: number;
+}
+
+export interface Statistics {
+  total_projects: number;
+  active_projects: number;
+  archived_projects: number;
+  total_size_bytes: number;
+  active_size_bytes: number;
+  archived_size_bytes: number;
+  project_types: ProjectTypeCount[];
+  git_activity: GitActivityStats;
+}
+
+export interface OutdatedPackage {
+  name: string;
+  current: string;
+  wanted: string;
+  latest: string;
+}

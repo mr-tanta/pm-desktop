@@ -5,6 +5,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Dashboard } from "@/components/dashboard/dashboard";
 import { ProjectList } from "@/components/projects/project-list";
 import { ProjectDetail } from "@/components/projects/project-detail";
+import { CreateProject } from "@/components/projects/create-project";
+import { StatisticsPage } from "@/components/statistics/statistics-page";
 import { SettingsPage } from "@/components/settings/settings-page";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { UpdateNotification } from "@/components/shared/update-notification";
@@ -56,6 +58,8 @@ function AppContent() {
       {currentView === "dashboard" && <Dashboard />}
       {currentView === "projects" && <ProjectList />}
       {currentView === "project-detail" && <ProjectDetail />}
+      {currentView === "create-project" && <CreateProject />}
+      {currentView === "statistics" && <StatisticsPage />}
       {currentView === "settings" && <SettingsPage />}
       <CommandPalette
         open={commandPaletteOpen}

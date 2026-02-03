@@ -3,7 +3,7 @@ mod models;
 mod services;
 mod tray;
 
-use commands::{config, projects, system, timer};
+use commands::{config, create, projects, statistics, system, timer};
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -56,6 +56,18 @@ pub fn run() {
             timer::stop_timer,
             timer::get_active_timer,
             timer::get_time_entries,
+            // Create commands
+            create::list_templates,
+            create::create_project,
+            create::check_tool_installed,
+            create::clone_repository,
+            create::create_playground,
+            // Statistics commands
+            statistics::get_statistics,
+            statistics::run_dev_server,
+            statistics::kill_node_processes,
+            statistics::copy_to_clipboard,
+            statistics::check_outdated_packages,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

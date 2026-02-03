@@ -24,6 +24,8 @@ export function Header() {
           {currentView === "projects" && "Projects"}
           {currentView === "settings" && "Settings"}
           {currentView === "project-detail" && "Project"}
+          {currentView === "create-project" && "New Project"}
+          {currentView === "statistics" && "Statistics"}
         </h1>
       </div>
 
