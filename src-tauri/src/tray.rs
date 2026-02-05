@@ -8,6 +8,10 @@ use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Runtime, WebviewWindowBuilder,
 };
 
+const TRAY_POPUP_WIDTH: f64 = 320.0;
+const TRAY_POPUP_HEIGHT: f64 = 480.0;
+const TRAY_POPUP_Y_OFFSET: f64 = 4.0;
+
 pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     // Load icon from app resources
     let icon = app
@@ -22,7 +26,7 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         tauri::WebviewUrl::App("index.html#tray".into()),
     )
     .title("")
-    .inner_size(320.0, 480.0)
+    .inner_size(TRAY_POPUP_WIDTH, TRAY_POPUP_HEIGHT)
     .decorations(false)
     .transparent(true)
     .always_on_top(true)
@@ -68,14 +72,10 @@ fn toggle_tray_popup<R: Runtime>(app: &AppHandle<R>, x: f64, y: f64) {
 }
 
 fn position_popup<R: Runtime>(window: &tauri::WebviewWindow<R>, x: f64, y: f64) {
-    let width = 320.0;
-    let height = 480.0;
+    let popup_x = x - (TRAY_POPUP_WIDTH / 2.0);
+    let popup_y = y + TRAY_POPUP_Y_OFFSET;
 
-    // Position popup below the tray icon, centered
-    let popup_x = x - (width / 2.0);
-    let popup_y = y + 4.0;
-
-    let _ = window.set_size(LogicalSize::new(width, height));
+    let _ = window.set_size(LogicalSize::new(TRAY_POPUP_WIDTH, TRAY_POPUP_HEIGHT));
     let _ = window.set_position(LogicalPosition::new(popup_x, popup_y));
 }
 
@@ -199,9 +199,4 @@ pub fn show_main_window<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
 pub fn quit_app<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     app.exit(0);
     Ok(())
-}
-
-#[allow(dead_code)]
-pub fn update_timer_status<R: Runtime>(_app: &AppHandle<R>, _status: Option<(String, i64)>) {
-    // No longer needed with custom popup
 }

@@ -7,7 +7,7 @@ dist-ssr
 
 # Rust/Tauri
 src-tauri/target
-src-tauri/Cargo.lock
+# Note: Cargo.lock is committed for reproducible builds (this is an app, not a library)
 
 # Logs
 logs

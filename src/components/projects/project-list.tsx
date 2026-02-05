@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useProjects } from "@/hooks/use-projects";
 import { useAppStore } from "@/stores/app-store";
 import { ProjectCard } from "@/components/shared/project-card";
-import { Search, Filter } from "lucide-react";
+import { Search, Filter, FolderOpen, Plus } from "lucide-react";
 import type { ProjectLocation } from "@/types";
 
 export function ProjectList() {
@@ -72,10 +72,25 @@ export function ProjectList() {
           ))}
         </div>
       ) : (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">
+        <div className="text-center py-16">
+          <FolderOpen className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+          <h2 className="text-lg font-medium mb-2">
             {search ? "No projects match your search" : "No projects found"}
+          </h2>
+          <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+            {search
+              ? "Try adjusting your search terms or filters."
+              : "Create a new project or clone a repository to get started."}
           </p>
+          {!search && (
+            <button
+              onClick={() => useAppStore.getState().setView("create-project")}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4" />
+              Create Project
+            </button>
+          )}
         </div>
       )}
     </div>

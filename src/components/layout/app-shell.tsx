@@ -8,12 +8,13 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
-  const { zoomLevel, zoomIn, zoomOut } = useAppStore();
+  const { zoomLevel, zoomIn, zoomOut, theme } = useAppStore();
 
-  // Apply zoom to main content via CSS variable
+  // Apply theme class to document
   useEffect(() => {
-    document.documentElement.style.setProperty('--content-zoom', `${zoomLevel / 100}`);
-  }, [zoomLevel]);
+    document.documentElement.classList.toggle('light', theme === 'light');
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
 
   // Keyboard shortcuts for zoom
   useEffect(() => {
@@ -42,12 +43,8 @@ export function AppShell({ children }: AppShellProps) {
       <div className="flex-1 flex overflow-hidden">
         <Sidebar />
         <main
-          className="flex-1 overflow-auto origin-top-left"
-          style={{
-            transform: `scale(${zoomLevel / 100})`,
-            width: `${100 / (zoomLevel / 100)}%`,
-            height: `${100 / (zoomLevel / 100)}%`,
-          }}
+          className="flex-1 overflow-auto"
+          style={{ zoom: `${zoomLevel}%` }}
         >
           {children}
         </main>

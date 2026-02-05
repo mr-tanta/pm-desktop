@@ -4,6 +4,7 @@ mod services;
 mod tray;
 
 use commands::{config, create, disk_manager, permissions, port_manager, projects, statistics, system, timer};
+use services::Database;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -16,6 +17,10 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
+            // Initialize database and manage as app state
+            let db = Database::new().expect("Failed to initialize database");
+            app.manage(db);
+
             // Create system tray
             tray::create_tray(app.handle())?;
 

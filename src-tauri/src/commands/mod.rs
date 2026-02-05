@@ -1,6 +1,7 @@
 pub mod config;
 pub mod create;
 pub mod disk_manager;
+pub mod error;
 pub mod permissions;
 pub mod port_manager;
 pub mod projects;

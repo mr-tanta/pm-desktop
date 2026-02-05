@@ -1,10 +1,10 @@
 import { useAppStore } from "@/stores/app-store";
 import { formatDuration } from "@/lib/utils";
 import { useActiveTimer, useStopTimer } from "@/hooks/use-timer";
-import { Timer, Square, Search, Settings, ZoomIn, ZoomOut } from "lucide-react";
+import { Timer, Square, Search, Settings, ZoomIn, ZoomOut, Sun, Moon } from "lucide-react";
 
 export function Header() {
-  const { currentView, setView, zoomLevel, zoomIn, zoomOut, resetZoom } = useAppStore();
+  const { currentView, setView, zoomLevel, zoomIn, zoomOut, resetZoom, theme, toggleTheme } = useAppStore();
   const { data: activeTimer } = useActiveTimer();
   const stopTimerMutation = useStopTimer();
 
@@ -35,6 +35,15 @@ export function Header() {
 
       <div className="flex items-center gap-2">
         {/* Zoom Controls */}
+        <div className="flex items-center gap-1 border-r border-border pr-2 mr-1">
+          <button
+            onClick={toggleTheme}
+            className="p-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-foreground"
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          </button>
+        </div>
         <div className="flex items-center gap-1 border-r border-border pr-2 mr-1">
           <button
             onClick={zoomOut}

@@ -3,6 +3,8 @@ import type { Config, ActiveTimer } from "@/types";
 
 type View = "dashboard" | "projects" | "settings" | "project-detail" | "create-project" | "statistics" | "archive" | "disk-manager" | "port-manager" | "permissions";
 
+type Theme = "dark" | "light";
+
 interface AppState {
   // Navigation
   currentView: View;
@@ -21,6 +23,10 @@ interface AppState {
   // UI State
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
+
+  // Theme
+  theme: Theme;
+  toggleTheme: () => void;
 
   // Zoom
   zoomLevel: number;
@@ -49,6 +55,15 @@ export const useAppStore = create<AppState>((set) => ({
   // UI State
   sidebarCollapsed: false,
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+
+  // Theme
+  theme: (localStorage.getItem("pm-theme") as Theme) || "dark",
+  toggleTheme: () =>
+    set((state) => {
+      const next = state.theme === "dark" ? "light" : "dark";
+      localStorage.setItem("pm-theme", next);
+      return { theme: next };
+    }),
 
   // Zoom (50% to 150%)
   zoomLevel: 100,

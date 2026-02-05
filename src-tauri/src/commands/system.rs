@@ -127,8 +127,9 @@ pub fn get_installed_editors() -> Vec<InstalledEditor> {
 
 #[tauri::command]
 pub fn get_system_info() -> Result<SystemInfo, String> {
-    let mut sys = System::new_all();
-    sys.refresh_all();
+    let mut sys = System::new();
+    sys.refresh_memory();
+    sys.refresh_cpu_all();
 
     let disks = sysinfo::Disks::new_with_refreshed_list();
 

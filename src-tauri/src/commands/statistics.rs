@@ -6,6 +6,7 @@ use std::path::Path;
 use std::process::Command;
 
 use crate::commands::config::load_config;
+use crate::commands::projects::detect_project_type;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectTypeCount {
@@ -89,54 +90,6 @@ fn calculate_dir_size(dir: &Path) -> u64 {
         }
     }
     size
-}
-
-fn detect_project_type(path: &Path) -> Option<String> {
-    if path.join("package.json").exists() {
-        if let Ok(content) = fs::read_to_string(path.join("package.json")) {
-            if content.contains("\"next\"") {
-                return Some("Next.js".to_string());
-            }
-            if content.contains("\"react\"") && content.contains("\"vite\"") {
-                return Some("React + Vite".to_string());
-            }
-            if content.contains("\"react\"") {
-                return Some("React".to_string());
-            }
-            if content.contains("\"@nestjs/core\"") {
-                return Some("NestJS".to_string());
-            }
-            if content.contains("\"express\"") {
-                return Some("Express".to_string());
-            }
-            if content.contains("\"vue\"") {
-                return Some("Vue.js".to_string());
-            }
-            if content.contains("\"svelte\"") {
-                return Some("Svelte".to_string());
-            }
-            return Some("Node.js".to_string());
-        }
-    }
-
-    if path.join("Cargo.toml").exists() {
-        if let Ok(content) = fs::read_to_string(path.join("Cargo.toml")) {
-            if content.contains("tauri") {
-                return Some("Tauri".to_string());
-            }
-        }
-        return Some("Rust".to_string());
-    }
-
-    if path.join("go.mod").exists() {
-        return Some("Go".to_string());
-    }
-
-    if path.join("pyproject.toml").exists() || path.join("setup.py").exists() {
-        return Some("Python".to_string());
-    }
-
-    None
 }
 
 fn count_project_types(active_dir: &Path, archive_dir: &Path) -> Vec<ProjectTypeCount> {

@@ -6,11 +6,16 @@ use std::sync::Mutex;
 
 use crate::models::{ActiveTimer, TimeEntry};
 
+const CURRENT_SCHEMA_VERSION: u32 = 1;
+
+/// SQLite database for persisting time entries and deployments.
+/// Uses WAL journal mode and versioned migrations.
 pub struct Database {
     conn: Mutex<Connection>,
 }
 
 impl Database {
+    /// Opens (or creates) the database at `~/.devconfig/pm-desktop.db` and runs pending migrations.
     pub fn new() -> Result<Self> {
         let db_path = Self::get_db_path()?;
 
@@ -19,12 +24,14 @@ impl Database {
         }
 
         let conn = Connection::open(&db_path).context("Failed to open database")?;
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
+            .context("Failed to set database pragmas")?;
 
         let db = Self {
             conn: Mutex::new(conn),
         };
 
-        db.init_schema()?;
+        db.run_migrations()?;
         Ok(db)
     }
 
@@ -35,44 +42,68 @@ impl Database {
         Ok(path)
     }
 
-    fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+    fn get_schema_version(conn: &Connection) -> u32 {
+        conn.query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap_or(0)
+    }
 
-        conn.execute_batch(
-            r#"
-            CREATE TABLE IF NOT EXISTS time_entries (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_name TEXT NOT NULL,
-                started_at TEXT NOT NULL,
-                ended_at TEXT,
-                duration_seconds INTEGER
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_time_entries_project
-            ON time_entries(project_name);
-
-            CREATE INDEX IF NOT EXISTS idx_time_entries_started
-            ON time_entries(started_at);
-
-            CREATE TABLE IF NOT EXISTS deployments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_name TEXT NOT NULL,
-                platform TEXT NOT NULL,
-                environment TEXT,
-                status TEXT,
-                url TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_deployments_project
-            ON deployments(project_name);
-            "#,
-        )
-        .context("Failed to initialize database schema")?;
-
+    fn set_schema_version(conn: &Connection, version: u32) -> Result<()> {
+        conn.execute_batch(&format!("PRAGMA user_version = {}", version))
+            .context("Failed to set schema version")?;
         Ok(())
     }
 
+    fn run_migrations(&self) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let current_version = Self::get_schema_version(&conn);
+
+        if current_version >= CURRENT_SCHEMA_VERSION {
+            return Ok(());
+        }
+
+        // Migration 0 -> 1: Initial schema
+        if current_version < 1 {
+            conn.execute_batch(
+                r#"
+                CREATE TABLE IF NOT EXISTS time_entries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_name TEXT NOT NULL,
+                    started_at TEXT NOT NULL,
+                    ended_at TEXT,
+                    duration_seconds INTEGER
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_time_entries_project
+                ON time_entries(project_name);
+
+                CREATE INDEX IF NOT EXISTS idx_time_entries_started
+                ON time_entries(started_at);
+
+                CREATE TABLE IF NOT EXISTS deployments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_name TEXT NOT NULL,
+                    platform TEXT NOT NULL,
+                    environment TEXT,
+                    status TEXT,
+                    url TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_deployments_project
+                ON deployments(project_name);
+                "#,
+            )
+            .context("Failed to run migration v1")?;
+        }
+
+        // Future migrations go here:
+        // if current_version < 2 { ... }
+
+        Self::set_schema_version(&conn, CURRENT_SCHEMA_VERSION)?;
+        Ok(())
+    }
+
+    /// Starts a timer for the given project. Fails if a timer is already running.
     pub fn start_timer(&self, project_name: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
 
@@ -99,6 +130,7 @@ impl Database {
         Ok(())
     }
 
+    /// Stops the active timer and returns the completed time entry, or `None` if no timer was running.
     pub fn stop_timer(&self) -> Result<Option<TimeEntry>> {
         let conn = self.conn.lock().unwrap();
 
@@ -149,6 +181,7 @@ impl Database {
         Ok(Some(entry))
     }
 
+    /// Returns the currently running timer, if any, with its elapsed seconds.
     pub fn get_active_timer(&self) -> Result<Option<ActiveTimer>> {
         let conn = self.conn.lock().unwrap();
 
@@ -181,6 +214,7 @@ impl Database {
         }
     }
 
+    /// Returns completed time entries, optionally filtered by project name and limited in count.
     pub fn get_time_entries(
         &self,
         project_name: Option<&str>,

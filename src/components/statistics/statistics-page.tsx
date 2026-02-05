@@ -59,6 +59,14 @@ export function StatisticsPage() {
         <div className="text-center py-12 text-red-500">
           Failed to load statistics
         </div>
+      ) : stats && stats.total_projects === 0 ? (
+        <div className="text-center py-16">
+          <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+          <h2 className="text-lg font-medium mb-2">No statistics yet</h2>
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">
+            Create some projects to start seeing analytics and insights here.
+          </p>
+        </div>
       ) : stats ? (
         <div className="space-y-8">
           {/* Overview Cards */}

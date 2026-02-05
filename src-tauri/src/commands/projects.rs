@@ -19,8 +19,9 @@ static GIT_STATUS_CACHE: LazyLock<RwLock<HashMap<PathBuf, CachedGitStatus>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
 const GIT_CACHE_TTL: Duration = Duration::from_secs(30);
+const README_PREVIEW_MAX_CHARS: usize = 500;
 
-fn detect_project_type(path: &Path) -> Option<String> {
+pub(crate) fn detect_project_type(path: &Path) -> Option<String> {
     // Read package.json once and check all patterns
     if path.join("package.json").exists() {
         if let Ok(content) = fs::read_to_string(path.join("package.json")) {
@@ -319,7 +320,7 @@ pub async fn get_project(
             .then(|| {
                 fs::read_to_string(path.join("README.md"))
                     .ok()
-                    .map(|content| content.chars().take(500).collect::<String>())
+                    .map(|content| content.chars().take(README_PREVIEW_MAX_CHARS).collect::<String>())
             })
             .flatten();
 

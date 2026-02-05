@@ -169,11 +169,10 @@ pub async fn create_project(options: CreateProjectOptions) -> Result<CreateProje
 
     // Execute template command or create files
     if let Some(cmd) = &template.command {
-        let shell_cmd = format!("cd '{}' && {}", project_path.display(), cmd);
-
         let output = Command::new("sh")
             .arg("-c")
-            .arg(&shell_cmd)
+            .arg(cmd)
+            .current_dir(&project_path)
             .output()
             .map_err(|e| format!("Failed to execute template command: {}", e))?;
 
