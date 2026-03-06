@@ -3,7 +3,7 @@ mod models;
 mod services;
 mod tray;
 
-use commands::{config, create, disk_manager, permissions, port_manager, projects, statistics, system, timer};
+use commands::{config, create, disk_manager, env_manager, permissions, port_manager, process_manager, projects, statistics, system, time, timer, today, workspaces};
 use services::Database;
 use tauri::Manager;
 
@@ -16,13 +16,20 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             // Initialize database and manage as app state
             let db = Database::new().expect("Failed to initialize database");
             app.manage(db);
 
+            // Initialize process manager
+            app.manage(process_manager::ProcessManager::new());
+
             // Create system tray
             tray::create_tray(app.handle())?;
+
+            // Register global shortcut (Cmd+Shift+P to toggle tray popup)
+            tray::register_global_shortcut(app.handle())?;
 
             // Handle window close -> hide to tray
             let window = app.get_webview_window("main").unwrap();
@@ -52,6 +59,10 @@ pub fn run() {
             projects::get_project_size,
             projects::get_project_disk_info,
             projects::calculate_path_size,
+            projects::pin_project,
+            projects::unpin_project,
+            projects::get_pinned_projects,
+            projects::get_project_scripts,
             // System commands
             system::get_system_info,
             system::get_installed_editors,
@@ -64,6 +75,12 @@ pub fn run() {
             timer::stop_timer,
             timer::get_active_timer,
             timer::get_time_entries,
+            // Today commands
+            today::get_today_summary,
+            // Time insight commands
+            time::get_daily_time_summary,
+            time::get_weekly_time_summary,
+            time::get_time_streaks,
             // Create commands
             create::list_templates,
             create::create_project,
@@ -85,6 +102,7 @@ pub fn run() {
             disk_manager::empty_trash,
             disk_manager::get_cleanup_history,
             disk_manager::get_trash_size,
+            disk_manager::get_disk_trend,
             // Permissions commands
             permissions::get_permissions,
             permissions::trigger_files_permission,
@@ -110,10 +128,34 @@ pub fn run() {
             port_manager::get_port_watches,
             port_manager::get_port_history,
             port_manager::get_common_dev_ports,
-            // Tray popup commands
-            tray::get_recent_projects_list,
+            // Process Manager commands
+            process_manager::launch_project,
+            process_manager::stop_project,
+            process_manager::get_managed_processes,
+            process_manager::get_process_logs,
+            process_manager::clear_process_logs,
+            process_manager::remove_managed_process,
+            process_manager::detect_project_port,
+            // Workspace commands
+            workspaces::create_workspace,
+            workspaces::delete_workspace,
+            workspaces::list_workspaces,
+            workspaces::update_workspace,
+            workspaces::add_project_to_workspace,
+            workspaces::remove_project_from_workspace,
+            workspaces::start_workspace,
+            workspaces::stop_workspace,
+            // Env Manager commands
+            env_manager::list_project_env_files,
+            env_manager::read_env_file,
+            env_manager::write_env_variable,
+            env_manager::copy_env_variables,
+            // Tray commands
+            tray::get_tray_data,
+            tray::resize_tray_popup,
+            tray::start_working,
+            tray::stop_tray_process,
             tray::emit_open_project,
-            tray::open_in_editor_cmd,
             tray::show_main_window,
             tray::quit_app,
         ])

@@ -10,6 +10,7 @@ pub struct Project {
     pub created_at: Option<DateTime<Utc>>,
     pub last_modified: Option<DateTime<Utc>>,
     pub git_status: Option<GitStatus>,
+    pub is_pinned: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -115,4 +116,62 @@ pub struct ActiveTimer {
     pub project_name: String,
     pub started_at: DateTime<Utc>,
     pub elapsed_seconds: i64,
+}
+
+// Today Summary types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TodaySummary {
+    pub greeting: String,
+    pub attention_items: Vec<AttentionItem>,
+    pub recent_projects: Vec<Project>,
+    pub pinned_projects: Vec<Project>,
+    pub today_time: TodayTimeStats,
+    pub weekly_overview: Vec<DaySummary>,
+    pub active_ports_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttentionItem {
+    pub kind: String,
+    pub project_name: String,
+    pub message: String,
+    pub severity: String,
+    pub action: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TodayTimeStats {
+    pub total_today_seconds: i64,
+    pub sessions_today: u32,
+    pub current_project: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DaySummary {
+    pub date: String,
+    pub total_seconds: i64,
+    pub project_count: u32,
+}
+
+// Time Insights types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DailyProjectTime {
+    pub project_name: String,
+    pub total_seconds: i64,
+    pub session_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WeeklySummary {
+    pub days: Vec<DaySummary>,
+    pub total_seconds: i64,
+    pub most_active_project: Option<String>,
+    pub avg_daily_seconds: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimeStreaks {
+    pub current_streak_days: u32,
+    pub longest_streak_days: u32,
+    pub last_active_date: Option<String>,
 }

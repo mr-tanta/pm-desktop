@@ -7,10 +7,10 @@ import { DiskOverview } from "./disk-overview";
 import { CategoryList } from "./category-list";
 import { CleanupPreviewModal } from "./cleanup-preview-modal";
 import { DiskVisualization } from "./disk-visualization";
+import { TrendChart } from "./trend-chart";
 import type { ScanProgressEvent } from "@/types";
 import type { PermissionsResult } from "@/types";
 import {
-  ArrowLeft,
   HardDrive,
   RefreshCw,
   Loader2,
@@ -34,7 +34,6 @@ export function DiskManagerPage() {
     getSelectedSize,
     getSelectedCount,
     getLastScanDate,
-    clearSelection,
   } = useDiskManagerStore();
 
   // Use local state for scanning to ensure immediate UI feedback
@@ -110,29 +109,27 @@ export function DiskManagerPage() {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={() => {
-            clearSelection();
-            setView("dashboard");
-          }}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Dashboard
-        </button>
-
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {lastScanDate && !isScanning && (
-            <span className="text-xs text-muted-foreground">
-              Last scan: {getRelativeTime(lastScanDate)}
-            </span>
-          )}
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <HardDrive className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold">Disk Manager</h1>
+            {lastScanDate && !isScanning && (
+              <p className="text-xs text-muted-foreground">
+                Last scan {getRelativeTime(lastScanDate)}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setShowHistory(!showHistory)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md hover:bg-secondary border border-border text-muted-foreground hover:text-foreground"
           >
             <History className="h-4 w-4" />
             History
@@ -140,7 +137,7 @@ export function DiskManagerPage() {
           <button
             onClick={handleScan}
             disabled={isScanning}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 font-medium"
           >
             {isScanning ? (
               <>
@@ -157,22 +154,9 @@ export function DiskManagerPage() {
         </div>
       </div>
 
-      {/* Title */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <HardDrive className="h-6 w-6 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-xl font-semibold">Disk Manager</h1>
-          <p className="text-sm text-muted-foreground">
-            Clean up developer caches, build artifacts, and free disk space
-          </p>
-        </div>
-      </div>
-
       {/* Permissions Warning */}
       {permissions && !permissions.required_granted && (
-        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mb-6">
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
           <div className="flex items-start gap-3">
             <ShieldAlert className="h-5 w-5 text-yellow-500 shrink-0 mt-0.5" />
             <div className="flex-1">
@@ -205,7 +189,7 @@ export function DiskManagerPage() {
 
       {/* Scanning Progress */}
       {isScanning && (
-        <div className="bg-card border border-border rounded-lg p-4 mb-6">
+        <div className="bg-card border border-border rounded-lg p-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium">Scanning disk...</span>
             <button
@@ -229,7 +213,7 @@ export function DiskManagerPage() {
 
       {/* Error State */}
       {scanError && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6">
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
           <p className="text-sm text-red-500">{scanError}</p>
         </div>
       )}
@@ -255,11 +239,14 @@ export function DiskManagerPage() {
       {/* Results */}
       {scanResult && !isScanning && (
         <>
+          {/* Trend Chart */}
+          <TrendChart />
+
           {/* Overview Cards */}
           <DiskOverview result={scanResult} />
 
           {/* Main Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Visualization */}
             <div className="bg-card border border-border rounded-lg p-4">
               <h2 className="text-sm font-semibold mb-4">Disk Usage</h2>
@@ -276,7 +263,7 @@ export function DiskManagerPage() {
           {/* Selection Footer */}
           {selectedCount > 0 && (
             <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4">
-              <div className="max-w-6xl mx-auto flex items-center justify-between">
+              <div className="px-6 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <span className="text-sm">
                     <span className="font-medium">{selectedCount}</span>{" "}

@@ -296,6 +296,7 @@ export const usePortManagerStore = create<PortManagerState>()(
               p.port.toString().includes(query) ||
               p.process?.name.toLowerCase().includes(query) ||
               p.process?.command.toLowerCase().includes(query) ||
+              p.process?.project_name?.toLowerCase().includes(query) ||
               p.local_address.toLowerCase().includes(query)
           );
         }

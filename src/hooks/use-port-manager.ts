@@ -231,6 +231,21 @@ export function useCommonDevPorts() {
   });
 }
 
+// Get ports belonging to a specific project
+export function useProjectPorts(projectName: string | null) {
+  return useQuery({
+    queryKey: [...portManagerKeys.all, "project-ports", projectName],
+    queryFn: async () => {
+      const result = await scanDevPorts();
+      return result.ports.filter(
+        (p) => p.process?.project_name === projectName
+      );
+    },
+    enabled: !!projectName,
+    staleTime: 30_000,
+  });
+}
+
 // Utility hook to get port status by checking availability
 export function usePortStatus(port: number) {
   const { data: isAvailable, isLoading } = useCheckPortAvailable(port);

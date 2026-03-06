@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState, useEffect, useRef } from "react";
 import { usePortManagerStore } from "@/stores/port-manager-store";
 import type { PortCategory, ConnectionState } from "@/types";
 import { Search, X } from "lucide-react";
@@ -34,6 +34,24 @@ export const FiltersBar = memo(function FiltersBar() {
     clearFilters,
   } = usePortManagerStore();
 
+  // Debounced local search state
+  const [localSearch, setLocalSearch] = useState(searchQuery);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    debounceRef.current = setTimeout(() => {
+      setSearchQuery(localSearch);
+    }, 200);
+    return () => clearTimeout(debounceRef.current);
+  }, [localSearch, setSearchQuery]);
+
+  // Sync external changes (e.g. clearFilters)
+  useEffect(() => {
+    if (searchQuery !== localSearch) {
+      setLocalSearch(searchQuery);
+    }
+  }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const hasActiveFilters =
     categoryFilter !== "all" ||
     stateFilter !== "all" ||
@@ -41,20 +59,20 @@ export const FiltersBar = memo(function FiltersBar() {
     showSystemPorts;
 
   return (
-    <div className="flex flex-wrap items-center gap-3 mt-6 p-4 bg-card border border-border rounded-lg">
+    <div className="flex flex-wrap items-center gap-3 p-4 bg-card border border-border rounded-lg">
       {/* Search */}
       <div className="relative flex-1 min-w-[200px]">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <input
           type="text"
-          placeholder="Search ports, processes..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search ports, processes, projects..."
+          value={localSearch}
+          onChange={(e) => setLocalSearch(e.target.value)}
           className="w-full pl-9 pr-3 py-2 text-sm bg-secondary border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
         />
-        {searchQuery && (
+        {localSearch && (
           <button
-            onClick={() => setSearchQuery("")}
+            onClick={() => { setLocalSearch(""); setSearchQuery(""); }}
             className="absolute right-3 top-1/2 -translate-y-1/2"
           >
             <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />

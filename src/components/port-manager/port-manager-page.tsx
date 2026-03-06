@@ -1,19 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { useAppStore } from "@/stores/app-store";
 import { usePortManagerStore } from "@/stores/port-manager-store";
 import { scanPorts, scanDevPorts, cancelPortScan } from "@/lib/tauri";
 import { PortOverview } from "./port-overview";
 import { PortList } from "./port-list";
-import { PortVisualization } from "./port-visualization";
-import { QuickPortsPanel } from "./quick-ports-panel";
 import { FiltersBar } from "./filters-bar";
 import { KillConfirmModal } from "./kill-confirm-modal";
 import { BatchKillModal } from "./batch-kill-modal";
 import { ProcessDetailModal } from "./process-detail-modal";
 import type { PortScanProgress, PortEntry } from "@/types";
 import {
-  ArrowLeft,
   Network,
   RefreshCw,
   Loader2,
@@ -23,12 +19,12 @@ import {
 } from "lucide-react";
 
 export function PortManagerPage() {
-  const setView = useAppStore((s) => s.setView);
   const {
     scanResult,
     scanProgress,
     scanStage,
     scanError,
+    lastScanTime,
     setScanResult,
     setScanProgress,
     setScanError,
@@ -36,10 +32,10 @@ export function PortManagerPage() {
     getSelectedCount,
     getSelectedPorts,
     getLastScanDate,
-    clearSelection,
     deselectAll,
     isPortSelected,
     togglePortSelection,
+    expandAllCategories,
   } = usePortManagerStore();
 
   const [isScanning, setLocalIsScanning] = useState(false);
@@ -47,6 +43,7 @@ export function PortManagerPage() {
   const [showBatchKillModal, setShowBatchKillModal] = useState(false);
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [selectedPort, setSelectedPort] = useState<PortEntry | null>(null);
+  const hasAutoScanned = useRef(false);
 
   const lastScanDate = getLastScanDate();
   const selectedCount = getSelectedCount();
@@ -61,7 +58,7 @@ export function PortManagerPage() {
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, []); // Empty deps - setScanProgress is stable from Zustand
+  }, []);
 
   // Format relative time
   const getRelativeTime = (date: Date): string => {
@@ -82,6 +79,7 @@ export function PortManagerPage() {
     try {
       const result = await scanPorts({ include_system_ports: false });
       setScanResult(result);
+      expandAllCategories();
     } catch (error) {
       setScanError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -90,20 +88,21 @@ export function PortManagerPage() {
     }
   };
 
-  const handleQuickScan = async () => {
+  const handleQuickScan = useCallback(async () => {
     setLocalIsScanning(true);
     setIsScanning(true);
     setScanError(null);
     try {
       const result = await scanDevPorts();
       setScanResult(result);
+      expandAllCategories();
     } catch (error) {
       setScanError(error instanceof Error ? error.message : String(error));
     } finally {
       setLocalIsScanning(false);
       setIsScanning(false);
     }
-  };
+  }, [setIsScanning, setScanError, setScanResult, expandAllCategories]);
 
   const handleCancelScan = async () => {
     try {
@@ -114,6 +113,20 @@ export function PortManagerPage() {
     setLocalIsScanning(false);
     setIsScanning(false);
   };
+
+  // Auto-scan on mount if no results or stale (>60s)
+  useEffect(() => {
+    if (hasAutoScanned.current) return;
+    const isStale = !lastScanTime || Date.now() - lastScanTime > 60_000;
+    if (isStale && !isScanning) {
+      hasAutoScanned.current = true;
+      handleQuickScan();
+    } else if (scanResult) {
+      // Already have fresh results, just expand categories
+      hasAutoScanned.current = true;
+      expandAllCategories();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleKillPort = (port: PortEntry) => {
     setSelectedPort(port);
@@ -131,32 +144,30 @@ export function PortManagerPage() {
     }
   };
 
-  return (
-    <div className="p-6 max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={() => {
-            clearSelection();
-            setView("dashboard");
-          }}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Dashboard
-        </button>
+  // Re-scan after kill with a short delay
+  const rescanAfterKill = useCallback(() => {
+    setTimeout(() => handleQuickScan(), 1000);
+  }, [handleQuickScan]);
 
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {lastScanDate && !isScanning && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/50 px-2 py-1 rounded">
-              <span>Last scan: {getRelativeTime(lastScanDate)}</span>
-              {scanResult && (
-                <span className="text-foreground font-medium">
-                  ({scanResult.ports.length} ports)
-                </span>
-              )}
-            </div>
-          )}
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <Network className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold">Port Manager</h1>
+            {lastScanDate && !isScanning && (
+              <p className="text-xs text-muted-foreground">
+                Last scan {getRelativeTime(lastScanDate)} · {scanResult?.ports.length ?? 0} ports
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
           <button
             onClick={handleQuickScan}
             disabled={isScanning}
@@ -169,7 +180,7 @@ export function PortManagerPage() {
           <button
             onClick={handleFullScan}
             disabled={isScanning}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 font-medium shadow-sm"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 font-medium"
           >
             {isScanning ? (
               <>
@@ -179,29 +190,16 @@ export function PortManagerPage() {
             ) : (
               <>
                 <RefreshCw className="h-4 w-4" />
-                {scanResult ? "Refresh" : "Scan All Ports"}
+                Full Scan
               </>
             )}
           </button>
         </div>
       </div>
 
-      {/* Title */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <Network className="h-6 w-6 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-xl font-semibold">Port Manager</h1>
-          <p className="text-sm text-muted-foreground">
-            Scan, monitor, and manage network ports and processes
-          </p>
-        </div>
-      </div>
-
       {/* Scanning Progress */}
       {isScanning && (
-        <div className="bg-card border border-border rounded-lg p-4 mb-6">
+        <div className="bg-card border border-border rounded-lg p-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium">Scanning ports...</span>
             <button
@@ -225,77 +223,32 @@ export function PortManagerPage() {
 
       {/* Error State */}
       {scanError && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6">
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
           <p className="text-sm text-red-500">{scanError}</p>
-        </div>
-      )}
-
-      {/* Empty State */}
-      {!scanResult && !isScanning && !scanError && (
-        <div className="text-center py-16">
-          <Network className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h2 className="text-lg font-medium mb-2">Ready to Scan</h2>
-          <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-            Scan your system to discover active ports and the processes using them.
-            Use Quick Scan for development ports or Full Scan for all ports.
-          </p>
-          <div className="flex items-center justify-center gap-3">
-            <button
-              onClick={handleQuickScan}
-              className="px-4 py-2 border border-border rounded-md hover:bg-secondary"
-            >
-              <Zap className="h-4 w-4 inline mr-2" />
-              Quick Scan
-            </button>
-            <button
-              onClick={handleFullScan}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-            >
-              Full Scan
-            </button>
-          </div>
         </div>
       )}
 
       {/* Results */}
       {scanResult && !isScanning && (
         <>
-          {/* Overview Cards */}
+          {/* Overview Cards + Inline Visualization */}
           <PortOverview result={scanResult} />
 
           {/* Filters */}
           <FiltersBar />
 
-          {/* Main Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-            {/* Port List - takes 2 columns */}
-            <div className="lg:col-span-2 bg-card border border-border rounded-lg p-4">
-              <PortList
-                onKillPort={handleKillPort}
-                onViewProcess={handleViewProcess}
-              />
-            </div>
-
-            {/* Right sidebar */}
-            <div className="space-y-6">
-              {/* Quick Ports Panel */}
-              <div className="bg-card border border-border rounded-lg p-4">
-                <h2 className="text-sm font-semibold mb-4">Quick Ports</h2>
-                <QuickPortsPanel onKillPort={handleKillPort} />
-              </div>
-
-              {/* Visualization */}
-              <div className="bg-card border border-border rounded-lg p-4">
-                <h2 className="text-sm font-semibold mb-4">Port Categories</h2>
-                <PortVisualization result={scanResult} />
-              </div>
-            </div>
+          {/* Port List - Full Width */}
+          <div className="bg-card border border-border rounded-lg p-4">
+            <PortList
+              onKillPort={handleKillPort}
+              onViewProcess={handleViewProcess}
+            />
           </div>
 
           {/* Selection Footer */}
           {selectedCount > 0 && (
             <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4 z-10">
-              <div className="max-w-6xl mx-auto flex items-center justify-between">
+              <div className="px-6 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <span className="text-sm">
                     <span className="font-medium">{selectedCount}</span>{" "}
@@ -331,12 +284,11 @@ export function PortManagerPage() {
           }}
           onSuccess={() => {
             setShowKillModal(false);
-            // Remove from selection if it was selected
             if (selectedPort && isPortSelected(selectedPort.port)) {
               togglePortSelection(selectedPort.port);
             }
             setSelectedPort(null);
-            handleFullScan();
+            rescanAfterKill();
           }}
         />
       )}
@@ -348,7 +300,7 @@ export function PortManagerPage() {
           onSuccess={() => {
             setShowBatchKillModal(false);
             deselectAll();
-            handleFullScan();
+            rescanAfterKill();
           }}
         />
       )}

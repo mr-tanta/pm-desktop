@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { getSystemInfo, loadConfig, checkDockerRunning } from "@/lib/tauri";
 
-export function useSystemInfo() {
+export function useSystemInfo(enabled = false) {
   return useQuery({
     queryKey: ["system-info"],
     queryFn: getSystemInfo,
-    staleTime: 5000,
-    refetchInterval: 10000,
+    staleTime: 60000,
+    enabled,
   });
 }
 
@@ -18,10 +18,11 @@ export function useConfig() {
   });
 }
 
-export function useDockerStatus() {
+export function useDockerStatus(enabled = false) {
   return useQuery({
     queryKey: ["docker-status"],
     queryFn: checkDockerRunning,
-    staleTime: 30000,
+    staleTime: 60000,
+    enabled,
   });
 }

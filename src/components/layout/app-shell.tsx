@@ -16,10 +16,11 @@ export function AppShell({ children }: AppShellProps) {
     document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
 
-  // Keyboard shortcuts for zoom
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey) {
+        // Zoom shortcuts
         if (e.key === '=' || e.key === '+') {
           e.preventDefault();
           zoomIn();
@@ -29,6 +30,20 @@ export function AppShell({ children }: AppShellProps) {
         } else if (e.key === '0') {
           e.preventDefault();
           useAppStore.getState().resetZoom();
+        }
+        // Navigation shortcuts: Cmd+1-4
+        else if (e.key === '1') {
+          e.preventDefault();
+          useAppStore.getState().setView('today');
+        } else if (e.key === '2') {
+          e.preventDefault();
+          useAppStore.getState().setView('projects');
+        } else if (e.key === '3') {
+          e.preventDefault();
+          useAppStore.getState().setView('disk-manager');
+        } else if (e.key === '4') {
+          e.preventDefault();
+          useAppStore.getState().setView('port-manager');
         }
       }
     };

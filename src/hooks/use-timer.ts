@@ -10,8 +10,8 @@ export function useActiveTimer() {
   const query = useQuery({
     queryKey: ["active-timer"],
     queryFn: getActiveTimer,
-    refetchInterval: 5000, // Reduced from 1s to 5s
-    staleTime: 4000,
+    refetchInterval: (query) => (query.state.data ? 30000 : false),
+    staleTime: 10000,
   });
 
   // Calculate elapsed locally between server refreshes

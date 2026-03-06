@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useProject, useProjectDiskInfo } from "@/hooks/use-projects";
 import { useStartTimer, useActiveTimer } from "@/hooks/use-timer";
+import { useProjectPorts } from "@/hooks/use-port-manager";
 import { useConfig } from "@/hooks/use-system";
 import { useAppStore } from "@/stores/app-store";
 import { formatBytes, formatRelativeTime } from "@/lib/utils";
-import { GitStatusBadge, ProjectTypeBadge, LocationBadge } from "@/components/shared/status-badge";
+import { ProjectTypeBadge, LocationBadge } from "@/components/shared/status-badge";
 import {
   openInEditor,
   openInTerminal,
@@ -13,6 +14,7 @@ import {
   restoreProject,
   deleteProject,
 } from "@/lib/tauri";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -32,7 +34,22 @@ import {
   Loader2,
   HardDrive,
   RefreshCw,
+  Globe,
+  GitBranch,
+  ArrowUp,
+  ArrowDown,
+  Circle,
+  FileEdit,
+  Files,
+  Eye,
 } from "lucide-react";
+import { ProjectTimeHistory } from "./project-time-history";
+import { ProjectPorts } from "./project-ports";
+import { ProjectScripts } from "./project-scripts";
+import { EnvManager } from "./env-manager";
+import { LaunchButton } from "@/components/shared/launch-button";
+import { LogViewer } from "@/components/shared/log-viewer";
+import { useProjectProcess } from "@/hooks/use-process-manager";
 import type { DiskSizeInfo } from "@/types";
 
 export function ProjectDetail() {
@@ -48,6 +65,7 @@ export function ProjectDetail() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [showFullDiskInfo, setShowFullDiskInfo] = useState(false);
+  const [showLogViewer, setShowLogViewer] = useState(true);
 
   // Fetch detailed disk info with all directories included
   const { data: diskInfo, isLoading: diskInfoLoading, refetch: refetchDiskInfo } = useProjectDiskInfo(
@@ -57,7 +75,10 @@ export function ProjectDetail() {
       : undefined
   );
 
+  const { data: projectPorts } = useProjectPorts(selectedProject);
+  const runningProcess = useProjectProcess(selectedProject);
   const editor = config?.default_editor || "cursor";
+  const lowestPort = projectPorts?.length ? Math.min(...projectPorts.map((p) => p.port)) : null;
 
   const archiveMutation = useMutation({
     mutationFn: () => archiveProject(project!.name),
@@ -156,12 +177,26 @@ export function ProjectDetail() {
           <FolderOpen className="h-4 w-4" />
           Finder
         </button>
+        {lowestPort && (
+          <button
+            onClick={() => openUrl(`http://localhost:${lowestPort}`)}
+            className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80"
+          >
+            <Globe className="h-4 w-4" />
+            Open in Browser
+          </button>
+        )}
+        <LaunchButton
+          projectName={project.name}
+          projectPath={project.path}
+          size="md"
+        />
         <button
           onClick={handleStartTimer}
           disabled={isTimerActive}
           className={`flex items-center gap-2 px-4 py-2 rounded-md ${
             isTimerActive
-              ? "bg-green-900/30 text-green-400 cursor-not-allowed"
+              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 cursor-not-allowed"
               : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
           }`}
         >
@@ -176,7 +211,7 @@ export function ProjectDetail() {
           <button
             onClick={() => archiveMutation.mutate()}
             disabled={archiveMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-yellow-900/30 text-yellow-500 rounded-md hover:bg-yellow-900/50 disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-500 rounded-md hover:bg-yellow-200 dark:hover:bg-yellow-900/50 disabled:opacity-50"
           >
             {archiveMutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -189,7 +224,7 @@ export function ProjectDetail() {
           <button
             onClick={() => restoreMutation.mutate()}
             disabled={restoreMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-900/30 text-blue-400 rounded-md hover:bg-blue-900/50 disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded-md hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-50"
           >
             {restoreMutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -202,7 +237,7 @@ export function ProjectDetail() {
 
         <button
           onClick={() => setShowDeleteConfirm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-red-900/30 text-red-400 rounded-md hover:bg-red-900/50"
+          className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-md hover:bg-red-200 dark:hover:bg-red-900/50"
         >
           <Trash2 className="h-4 w-4" />
           Delete
@@ -214,7 +249,7 @@ export function ProjectDetail() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-card border border-border rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
             <div className="flex items-start gap-4">
-              <div className="p-2 bg-red-900/30 rounded-lg">
+              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
                 <AlertTriangle className="h-6 w-6 text-red-500" />
               </div>
               <div className="flex-1">
@@ -284,12 +319,92 @@ export function ProjectDetail() {
         </div>
       )}
 
+      {/* Enhanced Git Status */}
       {project.git_status && (
         <div className="rounded-lg bg-card border border-border p-4">
-          <h3 className="text-sm font-medium mb-3">Git Status</h3>
-          <GitStatusBadge status={project.git_status} className="text-sm" />
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <GitBranch className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-medium">Git Status</h3>
+            </div>
+            <button
+              onClick={() => openInEditor(project.path, editor)}
+              className="flex items-center gap-1.5 px-2 py-1 rounded text-xs hover:bg-secondary text-muted-foreground hover:text-foreground"
+              title="Open in editor"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Open in Editor
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {project.git_status.branch && (
+              <div className="rounded-md bg-secondary/50 px-3 py-2">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                  <GitBranch className="h-3 w-3" />
+                  Branch
+                </div>
+                <div className="text-sm font-medium truncate">{project.git_status.branch}</div>
+              </div>
+            )}
+            {project.git_status.staged_count > 0 && (
+              <div className="rounded-md bg-green-500/5 border border-green-500/10 px-3 py-2">
+                <div className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 mb-1">
+                  <Files className="h-3 w-3" />
+                  Staged
+                </div>
+                <div className="text-sm font-medium">{project.git_status.staged_count}</div>
+              </div>
+            )}
+            {project.git_status.modified_count > 0 && (
+              <div className="rounded-md bg-yellow-500/5 border border-yellow-500/10 px-3 py-2">
+                <div className="flex items-center gap-1.5 text-xs text-yellow-600 dark:text-yellow-400 mb-1">
+                  <FileEdit className="h-3 w-3" />
+                  Modified
+                </div>
+                <div className="text-sm font-medium">{project.git_status.modified_count}</div>
+              </div>
+            )}
+            {project.git_status.untracked_count > 0 && (
+              <div className="rounded-md bg-secondary/50 px-3 py-2">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                  <Eye className="h-3 w-3" />
+                  Untracked
+                </div>
+                <div className="text-sm font-medium">{project.git_status.untracked_count}</div>
+              </div>
+            )}
+            {project.git_status.ahead > 0 && (
+              <div className="rounded-md bg-green-500/5 border border-green-500/10 px-3 py-2">
+                <div className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 mb-1">
+                  <ArrowUp className="h-3 w-3" />
+                  Ahead
+                </div>
+                <div className="text-sm font-medium">{project.git_status.ahead}</div>
+              </div>
+            )}
+            {project.git_status.behind > 0 && (
+              <div className="rounded-md bg-orange-500/5 border border-orange-500/10 px-3 py-2">
+                <div className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400 mb-1">
+                  <ArrowDown className="h-3 w-3" />
+                  Behind
+                </div>
+                <div className="text-sm font-medium">{project.git_status.behind}</div>
+              </div>
+            )}
+            {!project.git_status.is_dirty && project.git_status.ahead === 0 && project.git_status.behind === 0 && (
+              <div className="rounded-md bg-green-500/5 border border-green-500/10 px-3 py-2 col-span-2 sm:col-span-3">
+                <div className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+                  <Circle className="h-2 w-2 fill-current" />
+                  Clean — working tree is up to date
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
+
+      {/* Running Ports */}
+      <ProjectPorts projectName={project.name} />
 
       <div className="grid grid-cols-2 gap-4">
         <div className="rounded-lg bg-card border border-border p-4">
@@ -320,6 +435,21 @@ export function ProjectDetail() {
           </div>
         </div>
       </div>
+
+      {/* Log Viewer */}
+      {runningProcess && showLogViewer && (
+        <LogViewer
+          pid={runningProcess.pid}
+          projectName={project.name}
+          onClose={() => setShowLogViewer(false)}
+        />
+      )}
+
+      {/* Env Manager */}
+      {project.has_env_file && <EnvManager projectPath={project.path} />}
+
+      {/* Scripts Section */}
+      <ProjectScripts projectPath={project.path} hasPackageJson={project.has_package_json} />
 
       {/* Disk Usage Section */}
       <div className="rounded-lg bg-card border border-border p-4">
@@ -358,13 +488,15 @@ export function ProjectDetail() {
         )}
       </div>
 
+      {/* Time History */}
+      <ProjectTimeHistory projectName={project.name} />
+
       {project.readme_preview && (
         <div className="rounded-lg bg-card border border-border p-4">
           <h3 className="text-sm font-medium mb-3">README Preview</h3>
-          <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-mono">
+          <p className="text-sm text-muted-foreground whitespace-pre-line">
             {project.readme_preview}
-            {project.readme_preview.length >= 500 && "..."}
-          </pre>
+          </p>
         </div>
       )}
     </div>

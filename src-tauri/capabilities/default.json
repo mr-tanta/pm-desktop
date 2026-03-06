@@ -39,6 +39,8 @@
     "dialog:allow-save",
     "dialog:allow-message",
     "dialog:allow-ask",
-    "dialog:allow-confirm"
+    "dialog:allow-confirm",
+    "global-shortcut:default",
+    "global-shortcut:allow-register"
   ]
 }

@@ -43,6 +43,7 @@ export function CleanupPreviewModal({
     errors: string[];
   } | null>(null);
   const [confirmText, setConfirmText] = useState("");
+  const [projectDirAcknowledged, setProjectDirAcknowledged] = useState(false);
 
   const selectedItems = getSelectedItems();
   const hasAggressiveItems = selectedItems.some(
@@ -341,28 +342,97 @@ export function CleanupPreviewModal({
                 )}
               </div>
 
+              {/* Project Directory Warnings */}
+              {(() => {
+                const itemsWithWarnings = preview.items.filter((i) => i.warning);
+                const dirtyItems = itemsWithWarnings.filter((i) =>
+                  i.warning?.includes("uncommitted")
+                );
+                if (itemsWithWarnings.length === 0) return null;
+                return (
+                  <div className="space-y-2">
+                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                      <div className="flex items-center gap-2 text-yellow-500 mb-1">
+                        <AlertTriangle className="h-4 w-4" />
+                        <span className="text-sm font-medium">
+                          {itemsWithWarnings.length} item
+                          {itemsWithWarnings.length !== 1 ? "s are" : " is"} inside
+                          project directories
+                        </span>
+                      </div>
+                      <p className="text-xs text-yellow-400">
+                        These build artifacts belong to your managed projects and
+                        will need to be regenerated.
+                      </p>
+                    </div>
+                    {dirtyItems.length > 0 && (
+                      <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                        <div className="flex items-center gap-2 text-red-500 mb-1">
+                          <AlertTriangle className="h-4 w-4" />
+                          <span className="text-sm font-medium">
+                            {dirtyItems.length} project
+                            {dirtyItems.length !== 1 ? "s have" : " has"}{" "}
+                            uncommitted changes
+                          </span>
+                        </div>
+                        <p className="text-xs text-red-400">
+                          Some projects have uncommitted changes that haven't been
+                          pushed. Cleaning these may affect your work.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Items List */}
               <div>
                 <p className="text-sm font-medium mb-2">Items to clean:</p>
                 <div className="max-h-48 overflow-y-auto space-y-1 bg-secondary/30 rounded-lg p-2">
-                  {preview.items.slice(0, 20).map((item) => (
+                  {preview.items.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between text-xs py-1 px-2"
+                      className={cn(
+                        "flex items-center justify-between text-xs py-1 px-2 rounded",
+                        item.warning && "bg-yellow-500/5"
+                      )}
                     >
-                      <span className="truncate flex-1 mr-2">{item.name}</span>
-                      <span className="text-muted-foreground font-mono">
+                      <div className="flex-1 min-w-0 mr-2">
+                        <span className="truncate block">{item.name}</span>
+                        {item.warning && (
+                          <span className="flex items-center gap-1 text-[10px] text-yellow-500">
+                            <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                            <span className="truncate">{item.warning}</span>
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-muted-foreground font-mono shrink-0">
                         {item.formatted_size}
                       </span>
                     </div>
                   ))}
-                  {preview.items.length > 20 && (
-                    <p className="text-xs text-muted-foreground text-center py-2">
-                      ...and {preview.items.length - 20} more items
-                    </p>
-                  )}
                 </div>
               </div>
+
+              {/* Project directory acknowledgement */}
+              {preview.items.some((i) => i.warning) && (
+                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={projectDirAcknowledged}
+                      onChange={(e) =>
+                        setProjectDirAcknowledged(e.target.checked)
+                      }
+                      className="mt-0.5 rounded border-yellow-500"
+                    />
+                    <span className="text-xs text-yellow-400">
+                      I understand these items are inside my project directories
+                      and will need to be reinstalled/rebuilt
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -381,7 +451,8 @@ export function CleanupPreviewModal({
               disabled={
                 isExecuting ||
                 preview.items.length === 0 ||
-                (needsConfirmation && confirmText !== "DELETE")
+                (needsConfirmation && confirmText !== "DELETE") ||
+                (preview.items.some((i) => i.warning) && !projectDirAcknowledged)
               }
               className={cn(
                 "flex items-center gap-2 px-4 py-2 text-sm text-white rounded-md",

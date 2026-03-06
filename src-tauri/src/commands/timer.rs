@@ -1,15 +1,21 @@
 use crate::models::{ActiveTimer, TimeEntry};
 use crate::services::Database;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 #[tauri::command]
-pub fn start_timer(db: State<'_, Database>, project_name: String) -> Result<(), String> {
-    db.start_timer(&project_name).map_err(|e| e.to_string())
+pub fn start_timer(app: AppHandle, db: State<'_, Database>, project_name: String) -> Result<(), String> {
+    db.start_timer(&project_name).map_err(|e| e.to_string())?;
+    crate::tray::update_tray_state(&app);
+    let _ = app.emit("tray-state-changed", ());
+    Ok(())
 }
 
 #[tauri::command]
-pub fn stop_timer(db: State<'_, Database>) -> Result<Option<TimeEntry>, String> {
-    db.stop_timer().map_err(|e| e.to_string())
+pub fn stop_timer(app: AppHandle, db: State<'_, Database>) -> Result<Option<TimeEntry>, String> {
+    let result = db.stop_timer().map_err(|e| e.to_string())?;
+    crate::tray::update_tray_state(&app);
+    let _ = app.emit("tray-state-changed", ());
+    Ok(result)
 }
 
 #[tauri::command]

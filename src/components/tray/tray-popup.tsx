@@ -1,21 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Timer,
   Square,
   Play,
-  Folder,
-  ExternalLink,
-  StopCircle,
   ChevronRight,
+  ChevronDown,
   AppWindow,
   Power,
-  Database,
-  Globe,
+  Star,
+  StopCircle,
+  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { TrayData, ManagedProcess } from "@/types";
+import { getTrayData, resizeTrayPopup, startWorking, stopTrayProcess } from "@/lib/tauri";
 
 // Set transparent background for tray popup window only
 if (typeof document !== "undefined" && window.location.hash === "#tray") {
@@ -27,86 +29,66 @@ if (typeof document !== "undefined" && window.location.hash === "#tray") {
   document.body.style.boxSizing = "border-box";
 }
 
-interface PortEntry {
-  port: number;
-  category: string;
-  process?: {
-    name: string;
-    project_name?: string;
-    working_directory?: string;
-  };
-}
-
-interface ActiveTimer {
-  project_name: string;
-  elapsed_seconds: number;
-}
-
-interface Config {
-  active_dir: string;
-  default_editor: string;
-}
-
 export function TrayPopup() {
-  const [timer, setTimer] = useState<ActiveTimer | null>(null);
-  const [ports, setPorts] = useState<PortEntry[]>([]);
-  const [projects, setProjects] = useState<string[]>([]);
-  const [config, setConfig] = useState<Config | null>(null);
-  const [expandedSection, setExpandedSection] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [localElapsed, setLocalElapsed] = useState<number>(0);
+  const [expandedTimer, setExpandedTimer] = useState(false);
+  const [expandedWorkspaces, setExpandedWorkspaces] = useState(false);
 
-  // Load data
+  // Single query for all tray data — no polling
+  const { data, isLoading } = useQuery<TrayData>({
+    queryKey: ["tray-data"],
+    queryFn: getTrayData,
+    staleTime: 5000,
+  });
+
+  // Event-driven refresh
   useEffect(() => {
-    async function loadData() {
-      try {
-        const [timerData, configData] = await Promise.all([
-          invoke<ActiveTimer | null>("get_active_timer"),
-          invoke<Config>("load_config"),
-        ]);
-        setTimer(timerData);
-        setConfig(configData);
-
-        // Load projects
-        const projectsData = await invoke<string[]>("get_recent_projects_list", {
-          limit: 5,
-        }).catch(() => []);
-        setProjects(projectsData);
-
-        // Load ports
-        const portsData = await invoke<{ ports: PortEntry[] }>("scan_dev_ports").catch(
-          () => ({ ports: [] })
-        );
-        setPorts(portsData.ports || []);
-      } catch (e) {
-        console.error("Failed to load data:", e);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadData();
-
-    // Refresh timer every second
-    const interval = setInterval(async () => {
-      try {
-        const timerData = await invoke<ActiveTimer | null>("get_active_timer");
-        setTimer(timerData);
-      } catch {}
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // Close on blur
-  useEffect(() => {
-    const win = getCurrentWindow();
-    const unlisten = listen("tauri://blur", () => {
-      win.hide();
-    });
-
+    const unlisteners: Promise<() => void>[] = [];
+    unlisteners.push(
+      listen("tray-state-changed", () => {
+        queryClient.invalidateQueries({ queryKey: ["tray-data"] });
+      })
+    );
+    unlisteners.push(
+      listen("process-crashed", () => {
+        queryClient.invalidateQueries({ queryKey: ["tray-data"] });
+      })
+    );
     return () => {
-      unlisten.then((fn) => fn());
+      unlisteners.forEach((u) => u.then((fn) => fn()));
     };
+  }, [queryClient]);
+
+  // Sync local elapsed with timer data
+  useEffect(() => {
+    if (data?.timer) {
+      setLocalElapsed(data.timer.elapsed_seconds);
+    }
+  }, [data?.timer?.elapsed_seconds, data?.timer?.project_name]);
+
+  // Local timer tick for smooth second updates
+  useEffect(() => {
+    if (!data?.timer) return;
+    const interval = setInterval(() => {
+      setLocalElapsed((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [data?.timer?.project_name]);
+
+  // Dynamic sizing with ResizeObserver
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const height = entry.contentRect.height + 16; // padding
+        resizeTrayPopup(height).catch(() => {});
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
   // Close on escape
@@ -120,6 +102,16 @@ export function TrayPopup() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // Refetch on window focus/show
+  useEffect(() => {
+    const unlisten = listen("tauri://focus", () => {
+      queryClient.invalidateQueries({ queryKey: ["tray-data"] });
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [queryClient]);
+
   const formatDuration = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
@@ -127,359 +119,348 @@ export function TrayPopup() {
     return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  const handleStopTimer = async () => {
+  const handleStopTimer = useCallback(async () => {
     try {
       await invoke("stop_timer");
-      setTimer(null);
+      queryClient.invalidateQueries({ queryKey: ["tray-data"] });
     } catch {}
-  };
+  }, [queryClient]);
 
-  const handleStartTimer = async (project: string) => {
+  const handleStartTimer = useCallback(
+    async (project: string) => {
+      try {
+        await invoke("start_timer", { projectName: project });
+        queryClient.invalidateQueries({ queryKey: ["tray-data"] });
+        setExpandedTimer(false);
+      } catch {}
+    },
+    [queryClient]
+  );
+
+  const handleStartWorking = useCallback(
+    async (project: string) => {
+      try {
+        await startWorking(project, true, true, true);
+        getCurrentWindow().hide();
+      } catch {}
+    },
+    []
+  );
+
+  const handleStopProcess = useCallback(async (pid: number) => {
     try {
-      await invoke("start_timer", { projectName: project });
-      const timerData = await invoke<ActiveTimer | null>("get_active_timer");
-      setTimer(timerData);
-      setExpandedSection(null);
+      await stopTrayProcess(pid);
     } catch {}
-  };
+  }, []);
 
-  const handleKillPort = async (port: number) => {
+  const handleStopAll = useCallback(async () => {
+    if (!data?.processes) return;
+    const running = data.processes.filter(
+      (p) => p.status === "running" || p.status === "starting"
+    );
+    for (const proc of running) {
+      try {
+        await stopTrayProcess(proc.pid);
+      } catch {}
+    }
+  }, [data?.processes]);
+
+  const handleOpenProject = useCallback(async (projectName: string) => {
     try {
-      await invoke("kill_port", { port, force: false });
-      setPorts((prev) => prev.filter((p) => p.port !== port));
+      await invoke("emit_open_project", { projectName });
+      getCurrentWindow().hide();
     } catch {}
-  };
+  }, []);
 
-  const handleKillAll = async () => {
-    try {
-      await invoke("batch_kill_ports", {
-        ports: ports.map((p) => p.port),
-        force: false,
-      });
-      setPorts([]);
-    } catch {}
-  };
-
-  const handleOpenProject = async (project: string) => {
-    await invoke("emit_open_project", { projectName: project });
-    getCurrentWindow().hide();
-  };
-
-  const handleOpenEditor = async (project: string) => {
-    if (!config) return;
-    await invoke("open_in_editor_cmd", {
-      path: `${config.active_dir}/${project}`,
-      editor: config.default_editor,
-    });
-    getCurrentWindow().hide();
-  };
-
-  const handleShowWindow = async () => {
+  const handleShowWindow = useCallback(async () => {
     await invoke("show_main_window");
     getCurrentWindow().hide();
-  };
+  }, []);
 
-  const handleQuit = async () => {
+  const handleQuit = useCallback(async () => {
     await invoke("quit_app");
-  };
+  }, []);
 
-  const getPortIcon = (category: string) => {
-    switch (category) {
-      case "dev_server":
-        return <Globe className="h-3.5 w-3.5" />;
-      case "database":
-        return <Database className="h-3.5 w-3.5" />;
-      default:
-        return <Globe className="h-3.5 w-3.5" />;
-    }
-  };
-
-  const getDisplayName = (port: PortEntry) => {
-    if (port.process?.project_name) return port.process.project_name;
-    if (port.process?.name) {
-      const name = port.process.name.toLowerCase();
-      if (name === "node") return "Node.js";
-      if (name === "postgres" || name === "postgresql") return "PostgreSQL";
-      if (name === "mysql" || name === "mysqld") return "MySQL";
-      if (name === "redis" || name === "redis-server") return "Redis";
-      if (name === "mongod") return "MongoDB";
-      return port.process.name;
-    }
-    return "Unknown";
-  };
-
-  const getEditorDisplayName = (editor: string) => {
-    const map: Record<string, string> = {
-      cursor: "Cursor",
-      code: "VS Code",
-      vscode: "VS Code",
-      zed: "Zed",
-      sublime: "Sublime",
-      subl: "Sublime",
-      vim: "Vim",
-      nvim: "Neovim",
-      atom: "Atom",
-    };
-    return map[editor.toLowerCase()] || editor.charAt(0).toUpperCase() + editor.slice(1);
-  };
-
-  // Group ports
-  const devServers = ports.filter(
-    (p) => p.category === "dev_server" || p.category === "node_process"
-  );
-  const databases = ports.filter((p) => p.category === "database");
-  const others = ports.filter(
-    (p) => !["dev_server", "node_process", "database"].includes(p.category)
+  const handleStartWorkspace = useCallback(
+    async (workspaceId: number) => {
+      try {
+        await invoke("start_workspace", { workspaceId });
+        queryClient.invalidateQueries({ queryKey: ["tray-data"] });
+      } catch {}
+    },
+    [queryClient]
   );
 
-  if (loading) {
+  const handleStopWorkspace = useCallback(
+    async (workspaceId: number) => {
+      try {
+        await invoke("stop_workspace", { workspaceId });
+        queryClient.invalidateQueries({ queryKey: ["tray-data"] });
+      } catch {}
+    },
+    [queryClient]
+  );
+
+  // Derived state
+  const runningProcesses =
+    data?.processes?.filter(
+      (p) => p.status === "running" || p.status === "starting"
+    ) ?? [];
+  const hasTimer = !!data?.timer;
+  const pinnedProjects = data?.pinned_projects ?? [];
+  const workspaces = data?.workspaces ?? [];
+
+  // Check if a workspace has any running processes
+  const workspaceHasRunning = (ws: { projects: { project_name: string }[] }) => {
+    return ws.projects.some((wp) =>
+      runningProcesses.some((rp) => rp.project_name === wp.project_name)
+    );
+  };
+
+  if (isLoading) {
     return (
       <div className="tray-popup-container h-full flex items-center justify-center bg-zinc-950/95 backdrop-blur-xl rounded-xl border border-zinc-800 shadow-2xl">
-        <div className="animate-pulse text-zinc-500">Loading...</div>
+        <div className="animate-pulse text-zinc-500 text-sm">Loading...</div>
       </div>
     );
   }
 
   return (
     <div className="tray-popup-container h-full flex flex-col bg-zinc-950/95 backdrop-blur-xl rounded-xl border border-zinc-800 overflow-hidden shadow-2xl">
-      {/* Timer Section */}
-      <div className="p-3 border-b border-zinc-800/50">
-        {timer ? (
-          <button
-            onClick={handleStopTimer}
-            className="w-full flex items-center gap-3 p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors group"
-          >
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/20">
-              <Timer className="h-4 w-4 text-emerald-400" />
+      <div ref={contentRef}>
+        {/* Running Processes Section */}
+        {runningProcesses.length > 0 && (
+          <div className="p-2 border-b border-zinc-800/50">
+            <div className="px-2 py-1 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">
+              Running
             </div>
-            <div className="flex-1 text-left">
-              <div className="text-sm font-medium text-zinc-100">
-                {timer.project_name}
+            {runningProcesses.map((proc: ManagedProcess) => (
+              <div
+                key={proc.pid}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800/50 transition-colors group"
+              >
+                <div
+                  className={cn(
+                    "w-2 h-2 rounded-full flex-shrink-0",
+                    proc.status === "running"
+                      ? "bg-emerald-400"
+                      : "bg-yellow-400 animate-pulse"
+                  )}
+                />
+                <button
+                  onClick={() => handleOpenProject(proc.project_name)}
+                  className="flex-1 text-left text-sm text-zinc-300 truncate hover:text-zinc-100 transition-colors"
+                >
+                  {proc.project_name}
+                  {proc.port && (
+                    <span className="text-zinc-600 font-mono text-xs ml-1">
+                      :{proc.port}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleStopProcess(proc.pid)}
+                  className="p-1 rounded hover:bg-red-500/10 text-zinc-600 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all"
+                  title="Stop"
+                >
+                  <Square className="h-3 w-3" />
+                </button>
               </div>
-              <div className="text-xs text-emerald-400 font-mono">
-                {formatDuration(timer.elapsed_seconds)}
+            ))}
+            {runningProcesses.length >= 2 && (
+              <button
+                onClick={handleStopAll}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 mt-1 rounded-md text-xs text-red-400/80 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+              >
+                <StopCircle className="h-3 w-3" />
+                Stop All
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Active Timer Section */}
+        {hasTimer && data?.timer && (
+          <div className="p-2 border-b border-zinc-800/50">
+            <button
+              onClick={handleStopTimer}
+              className="w-full flex items-center gap-3 p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors group"
+            >
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/20">
+                <Timer className="h-4 w-4 text-emerald-400" />
               </div>
-            </div>
-            <Square className="h-4 w-4 text-zinc-500 group-hover:text-red-400 transition-colors" />
-          </button>
-        ) : (
-          <button
-            onClick={() =>
-              setExpandedSection(expandedSection === "timer" ? null : "timer")
-            }
-            className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-800/50 transition-colors"
-          >
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-zinc-800">
-              <Timer className="h-4 w-4 text-zinc-400" />
-            </div>
-            <span className="flex-1 text-left text-sm text-zinc-400">
-              Start Timer
-            </span>
-            <ChevronRight
-              className={cn(
-                "h-4 w-4 text-zinc-600 transition-transform",
-                expandedSection === "timer" && "rotate-90"
+              <div className="flex-1 text-left">
+                <div className="text-sm font-medium text-zinc-100">
+                  {data.timer.project_name}
+                </div>
+                <div className="text-xs text-emerald-400 font-mono">
+                  {formatDuration(localElapsed)}
+                </div>
+              </div>
+              <Square className="h-4 w-4 text-zinc-500 group-hover:text-red-400 transition-colors" />
+            </button>
+          </div>
+        )}
+
+        {/* Quick Actions Section */}
+        <div className="p-2 border-b border-zinc-800/50">
+          {/* Start Timer (only when no timer active) */}
+          {!hasTimer && (
+            <>
+              <button
+                onClick={() => setExpandedTimer(!expandedTimer)}
+                className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-800/50 transition-colors"
+              >
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-zinc-800">
+                  <Timer className="h-4 w-4 text-zinc-400" />
+                </div>
+                <span className="flex-1 text-left text-sm text-zinc-400">
+                  Start Timer
+                </span>
+                <ChevronRight
+                  className={cn(
+                    "h-4 w-4 text-zinc-600 transition-transform",
+                    expandedTimer && "rotate-90"
+                  )}
+                />
+              </button>
+              {expandedTimer && (
+                <div className="mt-1 space-y-0.5 pl-11">
+                  {pinnedProjects.length > 0 ? (
+                    pinnedProjects.map((project) => (
+                      <button
+                        key={project}
+                        onClick={() => handleStartTimer(project)}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 transition-colors"
+                      >
+                        <Play className="h-3 w-3" />
+                        <Star className="h-2.5 w-2.5 text-yellow-500 fill-yellow-500" />
+                        {project}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="text-xs text-zinc-600 px-2 py-1">
+                      No pinned projects
+                    </div>
+                  )}
+                </div>
               )}
-            />
+            </>
+          )}
+
+          {/* Pinned Projects with Start Working */}
+          {pinnedProjects.length > 0 && (
+            <div className="mt-1">
+              <div className="px-2 py-1 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">
+                Pinned Projects
+              </div>
+              {pinnedProjects.map((project) => {
+                const isRunning = runningProcesses.some(
+                  (p) => p.project_name === project
+                );
+                return (
+                  <div
+                    key={project}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800/50 transition-colors group"
+                  >
+                    <Star className="h-3 w-3 text-yellow-500 fill-yellow-500 flex-shrink-0" />
+                    <button
+                      onClick={() => handleOpenProject(project)}
+                      className="flex-1 text-left text-sm text-zinc-300 truncate hover:text-zinc-100"
+                    >
+                      {project}
+                    </button>
+                    {isRunning ? (
+                      <div className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
+                    ) : (
+                      <button
+                        onClick={() => handleStartWorking(project)}
+                        className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-zinc-500 hover:text-emerald-400 hover:bg-emerald-900/30 opacity-0 group-hover:opacity-100 transition-all"
+                        title="Open editor + Start timer + Launch dev"
+                      >
+                        <Play className="h-2.5 w-2.5" />
+                        Start
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Workspaces Section (collapsible) */}
+        {workspaces.length > 0 && (
+          <div className="p-2 border-b border-zinc-800/50">
+            <button
+              onClick={() => setExpandedWorkspaces(!expandedWorkspaces)}
+              className="w-full flex items-center gap-2 px-2 py-1 rounded-md hover:bg-zinc-800/50 transition-colors"
+            >
+              <Layers className="h-3.5 w-3.5 text-zinc-500" />
+              <span className="flex-1 text-left text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">
+                Workspaces
+              </span>
+              <span className="text-xs text-zinc-600">{workspaces.length}</span>
+              {expandedWorkspaces ? (
+                <ChevronDown className="h-3.5 w-3.5 text-zinc-600" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 text-zinc-600" />
+              )}
+            </button>
+            {expandedWorkspaces && (
+              <div className="mt-1 space-y-1">
+                {workspaces.map((ws) => {
+                  const isRunning = workspaceHasRunning(ws);
+                  return (
+                    <div
+                      key={ws.id}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800/50 transition-colors"
+                    >
+                      <span className="flex-1 text-sm text-zinc-400 truncate">
+                        {ws.name}
+                      </span>
+                      <span className="text-[10px] text-zinc-600">
+                        {ws.projects.length} projects
+                      </span>
+                      {isRunning ? (
+                        <button
+                          onClick={() => handleStopWorkspace(ws.id)}
+                          className="px-2 py-0.5 rounded text-[11px] text-red-400/80 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        >
+                          Stop
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleStartWorkspace(ws.id)}
+                          className="px-2 py-0.5 rounded text-[11px] text-zinc-500 hover:text-emerald-400 hover:bg-emerald-900/30 transition-colors"
+                        >
+                          Start
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="p-2 flex gap-1">
+          <button
+            onClick={handleShowWindow}
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 transition-colors"
+          >
+            <AppWindow className="h-4 w-4" />
+            Show App
           </button>
-        )}
-        {expandedSection === "timer" && !timer && (
-          <div className="mt-2 space-y-1 pl-11">
-            {projects.map((project) => (
-              <button
-                key={project}
-                onClick={() => handleStartTimer(project)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 transition-colors"
-              >
-                <Play className="h-3 w-3" />
-                {project}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Ports Section */}
-      <div className="flex-1 overflow-y-auto">
-        {ports.length > 0 ? (
-          <div className="p-2">
-            {/* Dev Servers */}
-            {devServers.length > 0 && (
-              <div className="mb-3">
-                <div className="px-2 py-1 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">
-                  Projects
-                </div>
-                {devServers.map((port) => (
-                  <button
-                    key={port.port}
-                    onClick={() => handleKillPort(port.port)}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800/50 transition-colors group"
-                  >
-                    <div className="flex items-center justify-center w-6 h-6 rounded bg-blue-500/10 text-blue-400">
-                      {getPortIcon(port.category)}
-                    </div>
-                    <span className="flex-1 text-left text-sm text-zinc-300 truncate">
-                      {getDisplayName(port)}
-                    </span>
-                    <span className="text-xs text-zinc-600 font-mono">
-                      :{port.port}
-                    </span>
-                    <StopCircle className="h-3.5 w-3.5 text-zinc-600 opacity-0 group-hover:opacity-100 group-hover:text-red-400 transition-all" />
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Databases */}
-            {databases.length > 0 && (
-              <div className="mb-3">
-                <div className="px-2 py-1 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">
-                  Databases
-                </div>
-                {databases.map((port) => (
-                  <button
-                    key={port.port}
-                    onClick={() => handleKillPort(port.port)}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800/50 transition-colors group"
-                  >
-                    <div className="flex items-center justify-center w-6 h-6 rounded bg-amber-500/10 text-amber-400">
-                      <Database className="h-3.5 w-3.5" />
-                    </div>
-                    <span className="flex-1 text-left text-sm text-zinc-300 truncate">
-                      {getDisplayName(port)}
-                    </span>
-                    <span className="text-xs text-zinc-600 font-mono">
-                      :{port.port}
-                    </span>
-                    <StopCircle className="h-3.5 w-3.5 text-zinc-600 opacity-0 group-hover:opacity-100 group-hover:text-red-400 transition-all" />
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Others */}
-            {others.length > 0 && (
-              <div className="mb-3">
-                <div className="px-2 py-1 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">
-                  Other
-                </div>
-                {others.map((port) => (
-                  <button
-                    key={port.port}
-                    onClick={() => handleKillPort(port.port)}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800/50 transition-colors group"
-                  >
-                    <div className="flex items-center justify-center w-6 h-6 rounded bg-zinc-500/10 text-zinc-400">
-                      {getPortIcon(port.category)}
-                    </div>
-                    <span className="flex-1 text-left text-sm text-zinc-300 truncate">
-                      {getDisplayName(port)}
-                    </span>
-                    <span className="text-xs text-zinc-600 font-mono">
-                      :{port.port}
-                    </span>
-                    <StopCircle className="h-3.5 w-3.5 text-zinc-600 opacity-0 group-hover:opacity-100 group-hover:text-red-400 transition-all" />
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Stop All */}
-            {ports.length > 1 && (
-              <button
-                onClick={handleKillAll}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 mt-1 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-colors"
-              >
-                <StopCircle className="h-4 w-4" />
-                Stop All ({ports.length})
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="p-4 text-center text-sm text-zinc-600">
-            No running servers
-          </div>
-        )}
-      </div>
-
-      {/* Quick Actions */}
-      <div className="border-t border-zinc-800/50 p-2">
-        <button
-          onClick={() =>
-            setExpandedSection(expandedSection === "open" ? null : "open")
-          }
-          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 transition-colors"
-        >
-          <Folder className="h-4 w-4" />
-          <span className="flex-1 text-left">Open Project</span>
-          <ChevronRight
-            className={cn(
-              "h-4 w-4 text-zinc-600 transition-transform",
-              expandedSection === "open" && "rotate-90"
-            )}
-          />
-        </button>
-        {expandedSection === "open" && (
-          <div className="mt-1 space-y-0.5 pl-6">
-            {projects.map((project) => (
-              <button
-                key={project}
-                onClick={() => handleOpenProject(project)}
-                className="w-full flex items-center gap-2 px-2 py-1 rounded text-xs text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/50 transition-colors"
-              >
-                {project}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <button
-          onClick={() =>
-            setExpandedSection(expandedSection === "editor" ? null : "editor")
-          }
-          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 transition-colors"
-        >
-          <ExternalLink className="h-4 w-4" />
-          <span className="flex-1 text-left">
-            Open in {config ? getEditorDisplayName(config.default_editor) : "Editor"}
-          </span>
-          <ChevronRight
-            className={cn(
-              "h-4 w-4 text-zinc-600 transition-transform",
-              expandedSection === "editor" && "rotate-90"
-            )}
-          />
-        </button>
-        {expandedSection === "editor" && (
-          <div className="mt-1 space-y-0.5 pl-6">
-            {projects.map((project) => (
-              <button
-                key={project}
-                onClick={() => handleOpenEditor(project)}
-                className="w-full flex items-center gap-2 px-2 py-1 rounded text-xs text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/50 transition-colors"
-              >
-                {project}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Footer */}
-      <div className="border-t border-zinc-800/50 p-2 flex gap-1">
-        <button
-          onClick={handleShowWindow}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 transition-colors"
-        >
-          <AppWindow className="h-4 w-4" />
-          Show App
-        </button>
-        <button
-          onClick={handleQuit}
-          className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-        >
-          <Power className="h-4 w-4" />
-        </button>
+          <button
+            onClick={handleQuit}
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+          >
+            <Power className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

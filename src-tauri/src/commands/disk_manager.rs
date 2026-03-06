@@ -3,8 +3,13 @@ use std::collections::HashMap;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter};
+
+use crate::models::Config;
+use crate::services::{ConfigService, Database};
+use crate::services::database::DiskScanHistoryEntry;
 
 /// Safety levels for cleanup operations
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -106,6 +111,8 @@ pub struct ScannableItem {
     #[serde(default)]
     pub children: Vec<ScannableItem>,
     pub exists: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warning: Option<String>,
 }
 
 /// Summary for a category
@@ -206,6 +213,12 @@ fn format_bytes(bytes: u64) -> String {
     }
 }
 
+/// Load config for project directory awareness
+fn load_app_config() -> Option<Config> {
+    let service = ConfigService::new();
+    service.load().ok()
+}
+
 /// Protected paths that should never be deleted
 fn is_protected_path(path: &Path) -> bool {
     let home = dirs::home_dir().unwrap_or_default();
@@ -219,7 +232,80 @@ fn is_protected_path(path: &Path) -> bool {
         PathBuf::from("/Library"),
     ];
 
-    protected.iter().any(|p| path.starts_with(p))
+    if protected.iter().any(|p| path.starts_with(p)) {
+        return true;
+    }
+
+    // Protect the configured active_dir and archive_dir root directories themselves
+    // (exact match only — their contents like node_modules are still cleanable)
+    if let Some(config) = load_app_config() {
+        let active = PathBuf::from(&config.active_dir);
+        let archive = PathBuf::from(&config.archive_dir);
+        if path == active || path == archive {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Check if a path is inside one of the user's configured project directories.
+/// Returns Some("Inside active project 'project-name'") or similar if inside a project.
+fn is_inside_project_dir(path: &Path, config: &Config) -> Option<String> {
+    let active_dir = PathBuf::from(&config.active_dir);
+    let archive_dir = PathBuf::from(&config.archive_dir);
+
+    // Check if path is inside active_dir
+    if let Ok(relative) = path.strip_prefix(&active_dir) {
+        let project_name = relative
+            .components()
+            .next()
+            .map(|c| c.as_os_str().to_string_lossy().to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+        return Some(format!("Inside active project '{}'", project_name));
+    }
+
+    // Check if path is inside archive_dir
+    if let Ok(relative) = path.strip_prefix(&archive_dir) {
+        let project_name = relative
+            .components()
+            .next()
+            .map(|c| c.as_os_str().to_string_lossy().to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+        return Some(format!("Inside archived project '{}'", project_name));
+    }
+
+    None
+}
+
+/// Check if a project directory has uncommitted git changes.
+/// `project_path` should be the root of the project (e.g. ~/Developer/active/my-app).
+fn check_project_git_dirty(project_path: &Path) -> bool {
+    Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(project_path)
+        .output()
+        .map(|output| {
+            output.status.success()
+                && !output.stdout.is_empty()
+        })
+        .unwrap_or(false)
+}
+
+/// Given a build artifact path (e.g. ~/Developer/active/my-app/node_modules),
+/// find the project root (the first directory under active_dir or archive_dir).
+fn find_project_root(artifact_path: &Path, config: &Config) -> Option<PathBuf> {
+    let active_dir = PathBuf::from(&config.active_dir);
+    let archive_dir = PathBuf::from(&config.archive_dir);
+
+    for base_dir in &[active_dir, archive_dir] {
+        if let Ok(relative) = artifact_path.strip_prefix(base_dir) {
+            if let Some(first_component) = relative.components().next() {
+                return Some(base_dir.join(first_component));
+            }
+        }
+    }
+    None
 }
 
 /// Calculate directory size using disk blocks
@@ -496,6 +582,7 @@ fn scan_target(target: &ScanTarget, category: DiskCategory) -> Option<ScannableI
         icon: category.icon().to_string(),
         children: vec![],
         exists: true,
+        warning: None,
     })
 }
 
@@ -558,6 +645,9 @@ fn scan_pattern_target(target: &ScanTarget, category: DiskCategory) -> Option<Sc
     let mut found_dirs = Vec::new();
     find_matching_dirs(base_path, dir_name, 3, &mut found_dirs);
 
+    // Load config once for all project-awareness checks in this scan
+    let config = load_app_config();
+
     for dir in found_dirs.iter().take(100) {
         // Limit to 100 entries
         let (size, files) = calculate_size(dir);
@@ -575,6 +665,24 @@ fn scan_pattern_target(target: &ScanTarget, category: DiskCategory) -> Option<Sc
         total_size += size;
         total_files += files;
 
+        // Check if this artifact is inside a configured project directory
+        let warning = if let Some(ref cfg) = config {
+            let mut warning_parts: Vec<String> = Vec::new();
+            if let Some(project_warning) = is_inside_project_dir(dir, cfg) {
+                warning_parts.push(project_warning);
+
+                // Also check if the project has uncommitted changes
+                if let Some(project_root) = find_project_root(dir, cfg) {
+                    if check_project_git_dirty(&project_root) {
+                        warning_parts.push("Has uncommitted changes".to_string());
+                    }
+                }
+            }
+            if warning_parts.is_empty() { None } else { Some(warning_parts.join(" — ")) }
+        } else {
+            None
+        };
+
         children.push(ScannableItem {
             id: format!("{:x}", md5_hash(&dir.to_string_lossy())),
             name: format!("{}/{}", project_name, dir_name),
@@ -588,6 +696,7 @@ fn scan_pattern_target(target: &ScanTarget, category: DiskCategory) -> Option<Sc
             icon: category.icon().to_string(),
             children: vec![],
             exists: true,
+            warning,
         });
     }
 
@@ -611,6 +720,7 @@ fn scan_pattern_target(target: &ScanTarget, category: DiskCategory) -> Option<Sc
         icon: category.icon().to_string(),
         children,
         exists: true,
+        warning: None,
     })
 }
 
@@ -619,7 +729,7 @@ static SCAN_CANCELLED: AtomicBool = AtomicBool::new(false);
 
 /// Scan disk for cleanable items
 #[tauri::command]
-pub async fn scan_disk(app: AppHandle) -> Result<DiskScanResult, String> {
+pub async fn scan_disk(app: AppHandle, db: tauri::State<'_, Database>) -> Result<DiskScanResult, String> {
     SCAN_CANCELLED.store(false, Ordering::SeqCst);
 
     let start = std::time::Instant::now();
@@ -707,6 +817,16 @@ pub async fn scan_disk(app: AppHandle) -> Result<DiskScanResult, String> {
     })
     .await
     .map_err(|e| e.to_string())??;
+
+    // Save scan to history
+    let category_map: HashMap<String, u64> = result
+        .categories
+        .iter()
+        .map(|c| (c.name.clone(), c.size_bytes))
+        .collect();
+    if let Ok(json) = serde_json::to_string(&category_map) {
+        let _ = db.save_disk_scan(result.total_size_bytes, &json);
+    }
 
     Ok(result)
 }
@@ -1036,6 +1156,13 @@ pub fn get_cleanup_history() -> Result<Vec<CleanupHistoryEntry>, String> {
     Ok(vec![])
 }
 
+/// Get disk usage trend over time
+#[tauri::command]
+pub fn get_disk_trend(db: tauri::State<'_, Database>, days: Option<u32>) -> Result<Vec<DiskScanHistoryEntry>, String> {
+    let days = days.unwrap_or(30);
+    db.get_disk_trend(days).map_err(|e| e.to_string())
+}
+
 /// Get trash size
 #[tauri::command]
 pub async fn get_trash_size() -> Result<ScannableItem, String> {
@@ -1062,6 +1189,7 @@ pub async fn get_trash_size() -> Result<ScannableItem, String> {
             icon: "trash-2".to_string(),
             children: vec![],
             exists: trash_path.exists(),
+            warning: None,
         })
     })
     .await

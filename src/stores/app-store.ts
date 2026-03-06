@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { Config, ActiveTimer } from "@/types";
 
-type View = "dashboard" | "projects" | "settings" | "project-detail" | "create-project" | "statistics" | "archive" | "disk-manager" | "port-manager" | "permissions";
+type View = "today" | "projects" | "settings" | "project-detail" | "create-project" | "disk-manager" | "port-manager" | "permissions" | "workspaces";
 
 type Theme = "dark" | "light";
 
@@ -19,6 +19,10 @@ interface AppState {
   // Timer
   activeTimer: ActiveTimer | null;
   setActiveTimer: (timer: ActiveTimer | null) => void;
+
+  // Timer suggestion
+  timerSuggestion: { projectName: string } | null;
+  setTimerSuggestion: (suggestion: { projectName: string } | null) => void;
 
   // UI State
   sidebarCollapsed: boolean;
@@ -38,7 +42,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set) => ({
   // Navigation
-  currentView: "dashboard",
+  currentView: "today",
   selectedProject: null,
   setView: (view) => set({ currentView: view }),
   setSelectedProject: (name) =>
@@ -51,6 +55,10 @@ export const useAppStore = create<AppState>((set) => ({
   // Timer
   activeTimer: null,
   setActiveTimer: (timer) => set({ activeTimer: timer }),
+
+  // Timer suggestion
+  timerSuggestion: null,
+  setTimerSuggestion: (suggestion) => set({ timerSuggestion: suggestion }),
 
   // UI State
   sidebarCollapsed: false,

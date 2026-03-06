@@ -6,14 +6,14 @@ import { Dashboard } from "@/components/dashboard/dashboard";
 import { ProjectList } from "@/components/projects/project-list";
 import { ProjectDetail } from "@/components/projects/project-detail";
 import { CreateProject } from "@/components/projects/create-project";
-import { StatisticsPage } from "@/components/statistics/statistics-page";
-import { ArchivePage } from "@/components/archive/archive-page";
 import { SettingsPage } from "@/components/settings/settings-page";
 import { DiskManagerPage } from "@/components/disk-manager";
 import { PortManagerPage } from "@/components/port-manager";
 import { PermissionsPage } from "@/components/permissions";
+import { WorkspaceManager } from "@/components/workspaces/workspace-manager";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { UpdateNotification } from "@/components/shared/update-notification";
+import { CrashNotifier } from "@/components/shared/crash-notifier";
 import { useAppStore } from "@/stores/app-store";
 
 const queryClient = new QueryClient({
@@ -59,21 +59,21 @@ function AppContent() {
 
   return (
     <AppShell>
-      {currentView === "dashboard" && <Dashboard />}
+      {currentView === "today" && <Dashboard />}
       {currentView === "projects" && <ProjectList />}
       {currentView === "project-detail" && <ProjectDetail />}
       {currentView === "create-project" && <CreateProject />}
-      {currentView === "statistics" && <StatisticsPage />}
-      {currentView === "archive" && <ArchivePage />}
       {currentView === "settings" && <SettingsPage />}
       {currentView === "disk-manager" && <DiskManagerPage />}
       {currentView === "port-manager" && <PortManagerPage />}
       {currentView === "permissions" && <PermissionsPage />}
+      {currentView === "workspaces" && <WorkspaceManager />}
       <CommandPalette
         open={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
       />
       <UpdateNotification />
+      <CrashNotifier />
     </AppShell>
   );
 }

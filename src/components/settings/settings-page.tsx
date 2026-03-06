@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useConfig } from "@/hooks/use-system";
 import { useAppStore } from "@/stores/app-store";
 import { saveConfig, getInstalledEditors, getPermissions } from "@/lib/tauri";
@@ -278,24 +278,18 @@ function Toggle({
   );
 }
 
-const EDITOR_ICONS: Record<string, string> = {
-  vscode: "💻",
-  cursor: "🖱️",
-  zed: "⚡",
-  sublime: "🔶",
-  jetbrains: "🧠",
-  vim: "📟",
-  neovim: "📟",
-  emacs: "🦬",
-  xcode: "🔨",
-  android: "🤖",
-  nova: "🌟",
-  textmate: "📝",
-  bbedit: "✏️",
-  helix: "🧬",
-  nano: "📄",
-  atom: "⚛️",
-};
+function EditorIcon({ editor }: { editor: InstalledEditor }) {
+  if (editor.icon.startsWith("data:image")) {
+    return (
+      <img
+        src={editor.icon}
+        alt={editor.name}
+        className="w-5 h-5 rounded-sm flex-shrink-0"
+      />
+    );
+  }
+  return <Code className="w-5 h-5 text-muted-foreground flex-shrink-0" />;
+}
 
 function EditorSelect({
   label,
@@ -308,28 +302,133 @@ function EditorSelect({
   onChange: (value: string) => void;
   editors: InstalledEditor[];
 }) {
+  const [open, setOpen] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
   const selectedEditor = editors.find((e) => e.command === value);
+
+  const close = useCallback(() => {
+    setOpen(false);
+    setHighlightIndex(-1);
+  }, []);
+
+  // Close on click outside
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        close();
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open, close]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!open) {
+      if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+        e.preventDefault();
+        setOpen(true);
+        setHighlightIndex(editors.findIndex((ed) => ed.command === value));
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setHighlightIndex((prev) => Math.min(prev + 1, editors.length - 1));
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setHighlightIndex((prev) => Math.max(prev - 1, 0));
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (highlightIndex >= 0 && highlightIndex < editors.length) {
+          onChange(editors[highlightIndex].command);
+          close();
+        }
+        break;
+      case "Escape":
+        e.preventDefault();
+        close();
+        break;
+    }
+  };
+
+  // Scroll highlighted item into view
+  useEffect(() => {
+    if (!open || highlightIndex < 0 || !listRef.current) return;
+    const items = listRef.current.children;
+    if (items[highlightIndex]) {
+      (items[highlightIndex] as HTMLElement).scrollIntoView({ block: "nearest" });
+    }
+  }, [highlightIndex, open]);
 
   return (
     <div>
       <label className="block text-sm text-muted-foreground mb-1">{label}</label>
-      <div className="relative">
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full px-3 py-2 pr-10 rounded-md bg-secondary border border-border text-sm focus:outline-none focus:ring-1 focus:ring-ring appearance-none cursor-pointer"
+      <div ref={containerRef} className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          onKeyDown={handleKeyDown}
+          className="w-full flex items-center gap-2.5 px-3 py-2 pr-10 rounded-md bg-secondary border border-border text-sm focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer text-left"
         >
-          {editors.length === 0 ? (
-            <option value={value}>{value || "No editors detected"}</option>
+          {selectedEditor ? (
+            <>
+              <EditorIcon editor={selectedEditor} />
+              <span>{selectedEditor.name}</span>
+            </>
           ) : (
-            editors.map((editor) => (
-              <option key={editor.id} value={editor.command}>
-                {EDITOR_ICONS[editor.icon] || "📝"} {editor.name}
-              </option>
-            ))
+            <span className="text-muted-foreground">
+              {value || "No editors detected"}
+            </span>
           )}
-        </select>
-        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        </button>
+        <ChevronDown
+          className={`absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+
+        {open && editors.length > 0 && (
+          <div
+            ref={listRef}
+            role="listbox"
+            className="absolute z-50 mt-1 w-full max-h-56 overflow-auto rounded-md bg-popover border border-border shadow-lg"
+          >
+            {editors.map((editor, i) => (
+              <button
+                key={editor.id}
+                type="button"
+                role="option"
+                aria-selected={editor.command === value}
+                onClick={() => {
+                  onChange(editor.command);
+                  close();
+                }}
+                onMouseEnter={() => setHighlightIndex(i)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors ${
+                  i === highlightIndex
+                    ? "bg-accent text-accent-foreground"
+                    : editor.command === value
+                    ? "bg-accent/50"
+                    : "hover:bg-accent/30"
+                }`}
+              >
+                <EditorIcon editor={editor} />
+                <span className="flex-1 truncate">{editor.name}</span>
+                <span className="text-xs text-muted-foreground font-mono">
+                  {editor.command}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {selectedEditor && (
         <p className="text-xs text-muted-foreground mt-1">

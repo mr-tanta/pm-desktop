@@ -42,7 +42,7 @@ export const PortList = memo(function PortList({
 
   const filteredPorts = getFilteredPorts();
 
-  // Group ports by category
+  // Group ports by category and sort by port number
   const portsByCategory = filteredPorts.reduce((acc, port) => {
     const category = port.category;
     if (!acc[category]) {
@@ -51,6 +51,11 @@ export const PortList = memo(function PortList({
     acc[category].push(port);
     return acc;
   }, {} as Record<PortCategory, PortEntry[]>);
+
+  // Sort ports numerically within each category
+  for (const category of Object.keys(portsByCategory) as PortCategory[]) {
+    portsByCategory[category].sort((a, b) => a.port - b.port);
+  }
 
   // Get categories in order, only including ones with ports
   const categories = CATEGORY_ORDER.filter((cat) => portsByCategory[cat]?.length > 0);

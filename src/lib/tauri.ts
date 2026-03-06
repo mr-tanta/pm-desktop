@@ -25,6 +25,11 @@ import type {
   CleanupResult,
   CleanupHistoryEntry,
   PermissionsResult,
+  TodaySummary,
+  DailyProjectTime,
+  WeeklySummary,
+  TimeStreaks,
+  ProjectScripts,
   // Port Manager types
   PortScanResult,
   PortScanOptions,
@@ -36,6 +41,20 @@ import type {
   PortWatch,
   PortWatchType,
   PortHistoryEntry,
+  // Process Manager types
+  ManagedProcess,
+  LaunchResult,
+  LaunchOptions,
+  LogLine,
+  // Workspace types
+  Workspace,
+  WorkspaceWithProjects,
+  // Env Manager types
+  EnvFile,
+  // Disk trend types
+  DiskScanHistoryEntry,
+  // Tray types
+  TrayData,
 } from "@/types";
 
 // Config commands
@@ -84,6 +103,10 @@ export async function calculatePathSize(
   options?: DiskSizeOptions
 ): Promise<DiskSizeInfo> {
   return invoke("calculate_path_size", { path, options });
+}
+
+export async function getProjectScripts(projectPath: string): Promise<ProjectScripts> {
+  return invoke("get_project_scripts", { projectPath });
 }
 
 // System commands
@@ -305,4 +328,149 @@ export async function getPortHistory(port?: number, limit?: number): Promise<Por
 
 export async function getCommonDevPorts(): Promise<number[]> {
   return invoke("get_common_dev_ports");
+}
+
+// ==================== Today Summary commands ====================
+
+export async function getTodaySummary(): Promise<TodaySummary> {
+  return invoke("get_today_summary");
+}
+
+// ==================== Time Insights commands ====================
+
+export async function getDailyTimeSummary(date?: string): Promise<DailyProjectTime[]> {
+  return invoke("get_daily_time_summary", { date });
+}
+
+export async function getWeeklyTimeSummary(weekOffset?: number): Promise<WeeklySummary> {
+  return invoke("get_weekly_time_summary", { weekOffset });
+}
+
+export async function getTimeStreaks(): Promise<TimeStreaks> {
+  return invoke("get_time_streaks");
+}
+
+// ==================== Project Pinning commands ====================
+
+export async function pinProject(projectName: string): Promise<void> {
+  return invoke("pin_project", { projectName });
+}
+
+export async function unpinProject(projectName: string): Promise<void> {
+  return invoke("unpin_project", { projectName });
+}
+
+export async function getPinnedProjects(): Promise<string[]> {
+  return invoke("get_pinned_projects");
+}
+
+// ==================== Process Manager commands ====================
+
+export async function launchProject(options: LaunchOptions): Promise<LaunchResult> {
+  return invoke("launch_project", { options });
+}
+
+export async function stopProject(pid: number): Promise<void> {
+  return invoke("stop_project", { pid });
+}
+
+export async function getManagedProcesses(): Promise<ManagedProcess[]> {
+  return invoke("get_managed_processes");
+}
+
+export async function getProcessLogs(pid: number): Promise<LogLine[]> {
+  return invoke("get_process_logs", { pid });
+}
+
+export async function clearProcessLogs(pid: number): Promise<void> {
+  return invoke("clear_process_logs", { pid });
+}
+
+export async function removeManagedProcess(pid: number): Promise<void> {
+  return invoke("remove_managed_process", { pid });
+}
+
+export async function detectProjectPort(projectPath: string): Promise<number | null> {
+  return invoke("detect_project_port", { projectPath });
+}
+
+// ==================== Workspace commands ====================
+
+export async function listWorkspaces(): Promise<WorkspaceWithProjects[]> {
+  return invoke("list_workspaces");
+}
+
+export async function createWorkspace(name: string): Promise<Workspace> {
+  return invoke("create_workspace", { name });
+}
+
+export async function deleteWorkspace(id: number): Promise<void> {
+  return invoke("delete_workspace", { id });
+}
+
+export async function updateWorkspace(id: number, name: string): Promise<void> {
+  return invoke("update_workspace", { id, name });
+}
+
+export async function addProjectToWorkspace(workspaceId: number, projectName: string): Promise<void> {
+  return invoke("add_project_to_workspace", { workspaceId, projectName });
+}
+
+export async function removeProjectFromWorkspace(workspaceId: number, projectName: string): Promise<void> {
+  return invoke("remove_project_from_workspace", { workspaceId, projectName });
+}
+
+export async function startWorkspace(workspaceId: number): Promise<string[]> {
+  return invoke("start_workspace", { workspaceId });
+}
+
+export async function stopWorkspace(workspaceId: number): Promise<void> {
+  return invoke("stop_workspace", { workspaceId });
+}
+
+// ==================== Env Manager commands ====================
+
+export async function listProjectEnvFiles(projectPath: string): Promise<EnvFile[]> {
+  return invoke("list_project_env_files", { projectPath });
+}
+
+export async function readEnvFile(path: string): Promise<EnvFile> {
+  return invoke("read_env_file", { path });
+}
+
+export async function writeEnvVariable(path: string, key: string, value: string): Promise<void> {
+  return invoke("write_env_variable", { path, key, value });
+}
+
+export async function copyEnvVariables(sourcePath: string, targetPath: string, keys: string[]): Promise<void> {
+  return invoke("copy_env_variables", { sourcePath, targetPath, keys });
+}
+
+// ==================== Disk Trend commands ====================
+
+export async function getDiskTrend(days?: number): Promise<DiskScanHistoryEntry[]> {
+  return invoke("get_disk_trend", { days });
+}
+
+// ==================== Tray commands ====================
+
+export async function getTrayData(): Promise<TrayData> {
+  return invoke("get_tray_data");
+}
+
+export async function resizeTrayPopup(height: number): Promise<void> {
+  return invoke("resize_tray_popup", { height });
+}
+
+export async function startWorking(
+  projectName: string,
+  openEditor: boolean,
+  startTimer: boolean,
+  launchDev: boolean
+): Promise<void> {
+  return invoke("start_working", { projectName, openEditor, startTimer, launchDev });
+}
+
+export async function stopTrayProcess(pid: number): Promise<void> {
+  return invoke("stop_tray_process", { pid });
 }

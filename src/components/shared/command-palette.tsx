@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Search, Folder, ExternalLink, Terminal, Play, Archive, RotateCcw } from "lucide-react";
-import { useProjects } from "@/hooks/use-projects";
+import { Search, Folder, ExternalLink, Terminal, Play, Archive, RotateCcw, Square, Star, HardDrive, Network, LayoutDashboard, Settings } from "lucide-react";
+import { useProjects, usePinProject, useUnpinProject, usePinnedProjects } from "@/hooks/use-projects";
 import { useAppStore } from "@/stores/app-store";
 import { useConfig } from "@/hooks/use-system";
-import { useStartTimer } from "@/hooks/use-timer";
+import { useStartTimer, useStopTimer, useActiveTimer } from "@/hooks/use-timer";
 import { openInEditor, openInTerminal, archiveProject, restoreProject } from "@/lib/tauri";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -30,12 +30,18 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   const { data: projects } = useProjects();
   const { data: config } = useConfig();
+  const { data: pinnedNames } = usePinnedProjects();
+  const { data: activeTimer } = useActiveTimer();
   const setSelectedProject = useAppStore((s) => s.setSelectedProject);
   const setView = useAppStore((s) => s.setView);
   const startTimer = useStartTimer();
+  const stopTimerMutation = useStopTimer();
+  const pinProjectMutation = usePinProject();
+  const unpinProjectMutation = useUnpinProject();
   const queryClient = useQueryClient();
 
   const editor = config?.default_editor || "cursor";
+  const pinnedSet = new Set(pinnedNames || []);
 
   // Build commands list
   const commands = useMemo((): Command[] => {
@@ -43,14 +49,14 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
     // Navigation commands
     cmds.push({
-      id: "nav:dashboard",
-      label: "Go to Dashboard",
-      icon: <Folder className="h-4 w-4" />,
+      id: "nav:today",
+      label: "Go to Today",
+      icon: <LayoutDashboard className="h-4 w-4" />,
       action: () => {
-        setView("dashboard");
+        setView("today");
         onClose();
       },
-      keywords: ["home", "overview"],
+      keywords: ["home", "dashboard", "overview"],
     });
 
     cmds.push({
@@ -65,9 +71,31 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     });
 
     cmds.push({
+      id: "nav:disk-manager",
+      label: "Go to Disk Manager",
+      icon: <HardDrive className="h-4 w-4" />,
+      action: () => {
+        setView("disk-manager");
+        onClose();
+      },
+      keywords: ["storage", "clean", "space"],
+    });
+
+    cmds.push({
+      id: "nav:port-manager",
+      label: "Go to Port Manager",
+      icon: <Network className="h-4 w-4" />,
+      action: () => {
+        setView("port-manager");
+        onClose();
+      },
+      keywords: ["ports", "server", "network"],
+    });
+
+    cmds.push({
       id: "nav:settings",
       label: "Go to Settings",
-      icon: <Folder className="h-4 w-4" />,
+      icon: <Settings className="h-4 w-4" />,
       action: () => {
         setView("settings");
         onClose();
@@ -75,9 +103,26 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       keywords: ["preferences", "config"],
     });
 
+    // Stop timer command
+    if (activeTimer) {
+      cmds.push({
+        id: "timer:stop",
+        label: "Stop timer",
+        description: `Currently tracking ${activeTimer.project_name}`,
+        icon: <Square className="h-4 w-4" />,
+        action: () => {
+          stopTimerMutation.mutate();
+          onClose();
+        },
+        keywords: ["time", "stop", "end"],
+      });
+    }
+
     // Project commands
     if (projects) {
       for (const project of projects.slice(0, 20)) {
+        const isPinned = pinnedSet.has(project.name);
+
         // View project
         cmds.push({
           id: `project:view:${project.name}`,
@@ -90,6 +135,24 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
           },
           keywords: [project.project_type || "", project.location],
         });
+
+        // Start Working (open editor + start timer)
+        if (project.location === "active") {
+          cmds.push({
+            id: `project:start-working:${project.name}`,
+            label: `Start Working on ${project.name}`,
+            description: "Open in editor and start timer",
+            icon: <Play className="h-4 w-4" />,
+            action: () => {
+              openInEditor(project.path, editor);
+              if (!activeTimer) {
+                startTimer.mutate(project.name);
+              }
+              onClose();
+            },
+            keywords: ["work", "launch", "begin"],
+          });
+        }
 
         // Open in editor
         cmds.push({
@@ -118,17 +181,38 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         });
 
         // Start timer
-        cmds.push({
-          id: `project:timer:${project.name}`,
-          label: `Start timer for ${project.name}`,
-          description: "Track time spent on this project",
-          icon: <Play className="h-4 w-4" />,
-          action: () => {
-            startTimer.mutate(project.name);
-            onClose();
-          },
-          keywords: ["time", "track", "clock"],
-        });
+        if (!activeTimer) {
+          cmds.push({
+            id: `project:timer:${project.name}`,
+            label: `Start timer for ${project.name}`,
+            description: "Track time spent on this project",
+            icon: <Play className="h-4 w-4" />,
+            action: () => {
+              startTimer.mutate(project.name);
+              onClose();
+            },
+            keywords: ["time", "track", "clock"],
+          });
+        }
+
+        // Pin/Unpin
+        if (project.location === "active") {
+          cmds.push({
+            id: `project:pin:${project.name}`,
+            label: isPinned ? `Unpin ${project.name}` : `Pin ${project.name}`,
+            description: isPinned ? "Remove from favorites" : "Add to favorites",
+            icon: <Star className="h-4 w-4" />,
+            action: () => {
+              if (isPinned) {
+                unpinProjectMutation.mutate(project.name);
+              } else {
+                pinProjectMutation.mutate(project.name);
+              }
+              onClose();
+            },
+            keywords: ["favorite", "star", "pin"],
+          });
+        }
 
         // Archive/Restore
         if (project.location === "active") {
@@ -162,7 +246,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     }
 
     return cmds;
-  }, [projects, editor, setSelectedProject, setView, startTimer, queryClient, onClose]);
+  }, [projects, editor, pinnedSet, activeTimer, setSelectedProject, setView, startTimer, stopTimerMutation, pinProjectMutation, unpinProjectMutation, queryClient, onClose]);
 
   // Filter commands based on search
   const filteredCommands = useMemo(() => {
@@ -244,12 +328,12 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     >
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-lg bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl overflow-hidden"
+        className="relative w-full max-w-lg bg-popover border border-border rounded-lg shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search input */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-700">
-          <Search className="h-5 w-5 text-zinc-400" />
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+          <Search className="h-5 w-5 text-muted-foreground" />
           <input
             ref={inputRef}
             type="text"
@@ -257,9 +341,9 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="flex-1 bg-transparent text-sm text-white placeholder:text-zinc-500 focus:outline-none"
+            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
           />
-          <kbd className="hidden sm:inline-flex h-5 items-center gap-1 rounded border border-zinc-600 bg-zinc-800 px-1.5 text-[10px] font-medium text-zinc-400">
+          <kbd className="hidden sm:inline-flex h-5 items-center gap-1 rounded border border-border bg-muted px-1.5 text-[10px] font-medium text-muted-foreground">
             ESC
           </kbd>
         </div>
@@ -267,7 +351,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         {/* Commands list */}
         <div ref={listRef} className="max-h-80 overflow-y-auto py-2">
           {filteredCommands.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-zinc-500">
+            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
               No commands found
             </div>
           ) : (
@@ -276,17 +360,17 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                 key={cmd.id}
                 className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${
                   index === selectedIndex
-                    ? "bg-zinc-800 text-white"
-                    : "text-zinc-300 hover:bg-zinc-800/50"
+                    ? "bg-accent text-accent-foreground"
+                    : "text-foreground/80 hover:bg-accent/50"
                 }`}
                 onClick={cmd.action}
                 onMouseEnter={() => setSelectedIndex(index)}
               >
-                <span className="text-zinc-400">{cmd.icon}</span>
+                <span className="text-muted-foreground">{cmd.icon}</span>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium truncate">{cmd.label}</div>
                   {cmd.description && (
-                    <div className="text-xs text-zinc-500 truncate">{cmd.description}</div>
+                    <div className="text-xs text-muted-foreground truncate">{cmd.description}</div>
                   )}
                 </div>
               </button>
@@ -295,14 +379,14 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         </div>
 
         {/* Footer hint */}
-        <div className="flex items-center gap-4 px-4 py-2 border-t border-zinc-700 text-xs text-zinc-500">
+        <div className="flex items-center gap-4 px-4 py-2 border-t border-border text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
-            <kbd className="px-1 py-0.5 rounded bg-zinc-800 border border-zinc-700">↑</kbd>
-            <kbd className="px-1 py-0.5 rounded bg-zinc-800 border border-zinc-700">↓</kbd>
+            <kbd className="px-1 py-0.5 rounded bg-muted border border-border">↑</kbd>
+            <kbd className="px-1 py-0.5 rounded bg-muted border border-border">↓</kbd>
             navigate
           </span>
           <span className="flex items-center gap-1">
-            <kbd className="px-1 py-0.5 rounded bg-zinc-800 border border-zinc-700">↵</kbd>
+            <kbd className="px-1 py-0.5 rounded bg-muted border border-border">↵</kbd>
             select
           </span>
         </div>

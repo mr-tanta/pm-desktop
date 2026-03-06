@@ -147,7 +147,7 @@ function TabButton({
   );
 }
 
-type View = "dashboard" | "projects" | "settings" | "project-detail" | "create-project" | "statistics";
+type View = "today" | "projects" | "settings" | "project-detail" | "create-project" | "disk-manager" | "port-manager" | "permissions";
 
 // Create from Template Tab
 function CreateFromTemplate({

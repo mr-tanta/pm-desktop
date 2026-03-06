@@ -16,6 +16,7 @@ import {
   Cog,
   Trash2,
   FolderOpen,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -209,7 +210,8 @@ function ItemRow({
       <div
         className={cn(
           "flex items-center gap-3 px-3 py-2 hover:bg-secondary/50",
-          level > 0 && "pl-8"
+          level > 0 && "pl-8",
+          item.warning && "bg-yellow-500/5"
         )}
         style={{ paddingLeft: level > 0 ? `${level * 24 + 12}px` : undefined }}
       >
@@ -251,6 +253,12 @@ function ItemRow({
           {level === 0 && (
             <span className="text-xs text-muted-foreground truncate block">
               {item.path}
+            </span>
+          )}
+          {item.warning && (
+            <span className="flex items-center gap-1 text-[11px] text-yellow-500 mt-0.5">
+              <AlertTriangle className="h-3 w-3 shrink-0" />
+              <span className="truncate">{item.warning}</span>
             </span>
           )}
         </div>

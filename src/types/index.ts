@@ -19,6 +19,58 @@ export interface Project {
   created_at: string | null;
   last_modified: string | null;
   git_status: GitStatus | null;
+  is_pinned?: boolean;
+}
+
+// Today Summary types
+export interface TodaySummary {
+  greeting: string;
+  attention_items: AttentionItem[];
+  recent_projects: Project[];
+  pinned_projects: Project[];
+  today_time: TodayTimeStats;
+  weekly_overview: DaySummary[];
+  active_ports_count: number;
+}
+
+export interface AttentionItem {
+  kind: string;
+  project_name: string;
+  message: string;
+  severity: string;
+  action: string;
+}
+
+export interface TodayTimeStats {
+  total_today_seconds: number;
+  sessions_today: number;
+  current_project: string | null;
+}
+
+export interface DaySummary {
+  date: string;
+  total_seconds: number;
+  project_count: number;
+}
+
+// Time Insights types
+export interface DailyProjectTime {
+  project_name: string;
+  total_seconds: number;
+  session_count: number;
+}
+
+export interface WeeklySummary {
+  days: DaySummary[];
+  total_seconds: number;
+  most_active_project: string | null;
+  avg_daily_seconds: number;
+}
+
+export interface TimeStreaks {
+  current_streak_days: number;
+  longest_streak_days: number;
+  last_active_date: string | null;
 }
 
 export interface ProjectDetail extends Project {
@@ -185,6 +237,7 @@ export interface ScannableItem {
   icon: string;
   children: ScannableItem[];
   exists: boolean;
+  warning?: string;
 }
 
 export interface CategorySummary {
@@ -399,9 +452,110 @@ export interface ProcessTreeNode {
   children: ProcessTreeNode[];
 }
 
+// Project Scripts
+export type ProjectScripts = Record<string, string>;
+
+// ==================== Process Manager Types ====================
+
+export type ProcessStatus = "starting" | "running" | "stopped" | "crashed";
+
+export interface ManagedProcess {
+  pid: number;
+  project_name: string;
+  project_path: string;
+  command: string;
+  port: number | null;
+  started_at: string;
+  status: ProcessStatus;
+}
+
+export interface LogLine {
+  timestamp: string;
+  stream: string;
+  content: string;
+}
+
+export interface ProcessLogEvent {
+  pid: number;
+  project_name: string;
+  line: LogLine;
+}
+
+export interface ProcessCrashedEvent {
+  pid: number;
+  project_name: string;
+  exit_code: number | null;
+}
+
+export interface LaunchResult {
+  pid: number;
+  project_name: string;
+  command: string;
+}
+
+export interface LaunchOptions {
+  project_path: string;
+  script: string | null;
+  port: number | null;
+}
+
+// ==================== Workspace Types ====================
+
+export interface Workspace {
+  id: number;
+  name: string;
+  created_at: string;
+}
+
+export interface WorkspaceProject {
+  workspace_id: number;
+  project_name: string;
+  sort_order: number;
+}
+
+export interface WorkspaceWithProjects {
+  id: number;
+  name: string;
+  created_at: string;
+  projects: WorkspaceProject[];
+}
+
+// ==================== Env Manager Types ====================
+
+export interface EnvVariable {
+  key: string;
+  value: string;
+  is_secret: boolean;
+}
+
+export interface EnvFile {
+  name: string;
+  path: string;
+  variables: EnvVariable[];
+}
+
+// ==================== Disk Trend Types ====================
+
+export interface DiskScanHistoryEntry {
+  id: number;
+  scan_date: string;
+  total_size: number;
+  category_sizes_json: string;
+}
+
 // Common dev port info
 export interface CommonDevPort {
   port: number;
   name: string;
   description: string;
+}
+
+// ==================== Tray Types ====================
+
+export interface TrayData {
+  processes: ManagedProcess[];
+  timer: ActiveTimer | null;
+  pinned_projects: string[];
+  workspaces: WorkspaceWithProjects[];
+  config: Config;
 }

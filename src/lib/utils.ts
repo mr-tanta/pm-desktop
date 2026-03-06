@@ -45,22 +45,22 @@ export function formatRelativeTime(dateString: string): string {
 }
 
 export function getProjectTypeColor(type: string | null): string {
-  if (!type) return "bg-zinc-700";
+  if (!type) return "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200";
 
   const colors: Record<string, string> = {
-    "Next.js": "bg-zinc-800",
-    "React": "bg-blue-900/50",
-    "React + Vite": "bg-purple-900/50",
-    "Vue.js": "bg-emerald-900/50",
-    "Svelte": "bg-orange-900/50",
-    "NestJS": "bg-red-900/50",
-    "Express": "bg-zinc-700",
-    "Node.js": "bg-green-900/50",
-    "Rust": "bg-orange-900/50",
-    "Tauri": "bg-yellow-900/50",
-    "Go": "bg-cyan-900/50",
-    "Python": "bg-blue-900/50",
+    "Next.js": "bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200",
+    "React": "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200",
+    "React + Vite": "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200",
+    "Vue.js": "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200",
+    "Svelte": "bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-200",
+    "NestJS": "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200",
+    "Express": "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200",
+    "Node.js": "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200",
+    "Rust": "bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-200",
+    "Tauri": "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200",
+    "Go": "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/50 dark:text-cyan-200",
+    "Python": "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200",
   };
 
-  return colors[type] || "bg-zinc-700";
+  return colors[type] || "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200";
 }

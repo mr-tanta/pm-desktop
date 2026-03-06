@@ -1,17 +1,16 @@
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
 import { useProjects } from "@/hooks/use-projects";
-import { LayoutDashboard, FolderKanban, Archive, ChevronLeft, ChevronRight, Plus, BarChart3, HardDrive, Network } from "lucide-react";
+import { LayoutDashboard, FolderKanban, ChevronLeft, ChevronRight, Plus, HardDrive, Network, Layers } from "lucide-react";
 
 export function Sidebar() {
   const { currentView, setView, sidebarCollapsed, toggleSidebar, setSelectedProject } = useAppStore();
   const { data: activeProjects } = useProjects("active");
-  const { data: archivedProjects } = useProjects("archived");
 
   const navItems = [
     {
-      id: "dashboard" as const,
-      label: "Dashboard",
+      id: "today" as const,
+      label: "Today",
       icon: LayoutDashboard,
     },
     {
@@ -19,17 +18,6 @@ export function Sidebar() {
       label: "Projects",
       icon: FolderKanban,
       count: activeProjects?.length,
-    },
-    {
-      id: "archive" as const,
-      label: "Archive",
-      icon: Archive,
-      count: archivedProjects?.length,
-    },
-    {
-      id: "statistics" as const,
-      label: "Statistics",
-      icon: BarChart3,
     },
     {
       id: "disk-manager" as const,
@@ -40,6 +28,11 @@ export function Sidebar() {
       id: "port-manager" as const,
       label: "Port Manager",
       icon: Network,
+    },
+    {
+      id: "workspaces" as const,
+      label: "Workspaces",
+      icon: Layers,
     },
   ];
 

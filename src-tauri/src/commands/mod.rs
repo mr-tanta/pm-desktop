@@ -1,10 +1,15 @@
 pub mod config;
 pub mod create;
 pub mod disk_manager;
+pub mod env_manager;
 pub mod error;
 pub mod permissions;
 pub mod port_manager;
+pub mod process_manager;
 pub mod projects;
 pub mod statistics;
 pub mod system;
+pub mod time;
 pub mod timer;
+pub mod today;
+pub mod workspaces;

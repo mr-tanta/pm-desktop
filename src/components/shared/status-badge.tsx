@@ -73,8 +73,8 @@ export function LocationBadge({ location, className }: LocationBadgeProps) {
       className={cn(
         "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
         location === "active"
-          ? "bg-green-900/30 text-green-400"
-          : "bg-zinc-800 text-zinc-400",
+          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+          : "bg-muted text-muted-foreground",
         className
       )}
     >

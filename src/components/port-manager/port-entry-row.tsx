@@ -7,7 +7,9 @@ import {
   Pin,
   PinOff,
   Check,
+  Globe,
 } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { cn } from "@/lib/utils";
 
 interface PortEntryRowProps {
@@ -164,6 +166,16 @@ export const PortEntryRow = memo(function PortEntryRow({
         >
           {isPinned ? <Pin className="h-4 w-4" /> : <PinOff className="h-4 w-4" />}
         </button>
+
+        {port.state === "listen" && (
+          <button
+            onClick={() => openUrl(`http://localhost:${port.port}`)}
+            className="p-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-foreground"
+            title="Open in browser"
+          >
+            <Globe className="h-4 w-4" />
+          </button>
+        )}
 
         {port.process && (
           <button

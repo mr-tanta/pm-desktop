@@ -1,5 +1,5 @@
 use crate::models::{Config, GitStatus, Project, ProjectDetail, ProjectLocation};
-use crate::services::ConfigService;
+use crate::services::{ConfigService, Database};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -8,6 +8,7 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, RwLock};
 use std::time::{Duration, Instant};
+use tauri::State;
 
 // Git status cache with TTL
 struct CachedGitStatus {
@@ -19,7 +20,40 @@ static GIT_STATUS_CACHE: LazyLock<RwLock<HashMap<PathBuf, CachedGitStatus>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
 const GIT_CACHE_TTL: Duration = Duration::from_secs(30);
-const README_PREVIEW_MAX_CHARS: usize = 500;
+
+/// Strip HTML tags from a string for plain-text display
+fn strip_html_tags(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut in_tag = false;
+    for ch in input.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => result.push(ch),
+            _ => {}
+        }
+    }
+    // Collapse multiple blank lines into one
+    let mut cleaned = String::with_capacity(result.len());
+    let mut prev_was_empty = false;
+    for line in result.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            if !prev_was_empty && !cleaned.is_empty() {
+                cleaned.push('\n');
+            }
+            prev_was_empty = true;
+        } else {
+            if prev_was_empty && !cleaned.is_empty() {
+                cleaned.push('\n');
+            }
+            cleaned.push_str(trimmed);
+            cleaned.push('\n');
+            prev_was_empty = false;
+        }
+    }
+    cleaned.trim().to_string()
+}
 
 pub(crate) fn detect_project_type(path: &Path) -> Option<String> {
     // Read package.json once and check all patterns
@@ -169,6 +203,10 @@ fn get_git_status(path: &Path) -> Option<GitStatus> {
     status
 }
 
+pub(crate) fn scan_projects_public(dir: &Path, location: ProjectLocation) -> Vec<Project> {
+    scan_projects(dir, location)
+}
+
 fn scan_projects(dir: &Path, location: ProjectLocation) -> Vec<Project> {
     let mut projects = Vec::new();
 
@@ -218,6 +256,7 @@ fn scan_projects(dir: &Path, location: ProjectLocation) -> Vec<Project> {
             created_at,
             last_modified,
             git_status,
+            is_pinned: None,
         });
     }
 
@@ -320,7 +359,7 @@ pub async fn get_project(
             .then(|| {
                 fs::read_to_string(path.join("README.md"))
                     .ok()
-                    .map(|content| content.chars().take(README_PREVIEW_MAX_CHARS).collect::<String>())
+                    .map(|content| strip_html_tags(&content))
             })
             .flatten();
 
@@ -704,6 +743,52 @@ pub async fn get_project_disk_info(
         };
 
         Ok(calculate_dir_size_native(&path, &options))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+// ==================== Pin/Unpin Commands ====================
+
+#[tauri::command]
+pub fn pin_project(db: State<'_, Database>, project_name: String) -> Result<(), String> {
+    db.pin_project(&project_name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn unpin_project(db: State<'_, Database>, project_name: String) -> Result<(), String> {
+    db.unpin_project(&project_name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_pinned_projects(db: State<'_, Database>) -> Result<Vec<String>, String> {
+    db.get_pinned_project_names().map_err(|e| e.to_string())
+}
+
+/// Get scripts from package.json
+#[tauri::command]
+pub async fn get_project_scripts(project_path: String) -> Result<HashMap<String, String>, String> {
+    tokio::task::spawn_blocking(move || {
+        let pkg_path = Path::new(&project_path).join("package.json");
+        if !pkg_path.exists() {
+            return Ok(HashMap::new());
+        }
+
+        let content = fs::read_to_string(&pkg_path).map_err(|e| e.to_string())?;
+        let parsed: serde_json::Value =
+            serde_json::from_str(&content).map_err(|e| e.to_string())?;
+
+        let scripts = parsed
+            .get("scripts")
+            .and_then(|s| s.as_object())
+            .map(|obj| {
+                obj.iter()
+                    .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                    .collect::<HashMap<String, String>>()
+            })
+            .unwrap_or_default();
+
+        Ok(scripts)
     })
     .await
     .map_err(|e| e.to_string())?
